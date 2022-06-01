@@ -1,2 +1,2 @@
-# hollow-skeleton
-a template repo that can be used as a skeleton 
+# hollow-instance-metadata-service
+A service for storing and retrieving instance metadata
