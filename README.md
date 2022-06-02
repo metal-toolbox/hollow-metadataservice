@@ -1,2 +1,2 @@
-# hollow-instance-metadata-service
+# hollow-metadataservice
 A service for storing and retrieving instance metadata

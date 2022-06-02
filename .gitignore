@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-instance-metadata-service
+metadataservice
 
 # Test binary, built with `go test -c`
 *.test
