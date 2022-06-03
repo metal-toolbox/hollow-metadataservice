@@ -1,7 +1,7 @@
 package main
 
 import (
-	"go.hollow.sh/instance-metadata-service/cmd"
+	"go.hollow.sh/metadataservice/cmd"
 )
 
 func main() {
