@@ -66,12 +66,12 @@ func (c *crdbTester) setup() error {
 		return err
 	}
 
-	dumpCmd := exec.Command("cockroach", "sql", "--url", c.dbURL, "--insecure", "-e", "SHOW CREATE ALL TABLES")
+	dumpCmd := exec.Command("cockroach", "dump", c.dbName, "--url", c.dbURL, "--insecure", "--dump-mode=schema")
 	createCmd := exec.Command("cockroach", "sql", "--url", c.testDBURL, "--database", c.testDBName, "--insecure")
 
 	r, w := io.Pipe()
 	dumpCmd.Stdout = w
-	createCmd.Stdin = newShowCreateTableFilter(newFKeyDestroyer(rgxCDBFkey, r))
+	createCmd.Stdin = newFKeyDestroyer(rgxCDBFkey, r)
 
 	if err = dumpCmd.Start(); err != nil {
 		return errors.Wrap(err, "failed to start 'cockroach dump' command")
@@ -81,7 +81,7 @@ func (c *crdbTester) setup() error {
 	}
 
 	if err = dumpCmd.Wait(); err != nil {
-		return errors.Wrap(err, "failed to wait for 'cockroach sql' command 1")
+		return errors.Wrap(err, "failed to wait for 'cockroach sql' command")
 	}
 
 	// After dumpCmd is done, close the write end of the pipe
@@ -90,7 +90,7 @@ func (c *crdbTester) setup() error {
 	}
 
 	if err = createCmd.Wait(); err != nil {
-		return errors.Wrap(err, "failed to wait for 'cockroach sql' command 2")
+		return errors.Wrap(err, "failed to wait for 'cockroach sql' command")
 	}
 
 	return nil
@@ -167,35 +167,4 @@ func buildQueryString(user, pass, dbname, host string, port int, sslmode string)
 	}
 
 	return fmt.Sprintf("postgresql://%s@%s:%d/%s?sslmode=%s", up, host, port, dbname, sslmode)
-}
-
-type showCreateFilter struct {
-	reader io.Reader
-	buf    *bytes.Buffer
-}
-
-func newShowCreateTableFilter(reader io.Reader) io.Reader {
-	return &showCreateFilter{
-		reader: reader,
-	}
-}
-
-// The new CRDB versions don't have the dump command like other DBMS
-// instead the docs say to use 'SHOW CREATE ALL TABLES' but that can't
-// be directly fed to the 'cockroach sql' command.
-// This filter removes the non-sql parts of the new output.
-func (f *showCreateFilter) Read(b []byte) (int, error) {
-	if f.buf == nil {
-		all, err := io.ReadAll(f.reader)
-
-		if err != nil {
-			return 0, err
-		}
-
-		all = bytes.Replace(all, []byte("create_statement"), []byte{}, -1)
-		all = bytes.Replace(all, []byte{'"'}, []byte{}, -1)
-		f.buf = bytes.NewBuffer(all)
-	}
-
-	return f.buf.Read(b)
 }

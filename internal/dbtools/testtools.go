@@ -69,8 +69,8 @@ func cleanDB() {
 
 	// Make sure the deletion goes in order so you don't break the databases foreign key constraints
 	testDB.Exec("SET sql_safe_updates = false;")
-	models.Metadata().DeleteAll(ctx, testDB)
-	models.Userdata().DeleteAll(ctx, testDB)
+	models.InstanceMetadata().DeleteAll(ctx, testDB)
+	models.InstanceUserdata().DeleteAll(ctx, testDB)
 	models.InstanceIPAddresses().DeleteAll(ctx, testDB)
 	testDB.Exec("SET sql_safe_updates = true;")
 }

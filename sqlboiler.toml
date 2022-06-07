@@ -9,3 +9,9 @@ port = 26257
 user = "root"
 sslmode = "disable"
 blacklist = ["goose_db_version"]
+
+[aliases.tables.instance_metadata.columns]
+metadata = "Metadata"
+
+[aliases.tables.instance_userdata.columns]
+userdata = "Userdata"

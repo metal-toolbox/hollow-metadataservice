@@ -5,10 +5,10 @@ package models
 
 var TableNames = struct {
 	InstanceIPAddresses string
-	Metadata            string
-	Userdata            string
+	InstanceMetadata    string
+	InstanceUserdata    string
 }{
 	InstanceIPAddresses: "instance_ip_addresses",
-	Metadata:            "metadata",
-	Userdata:            "userdata",
+	InstanceMetadata:    "instance_metadata",
+	InstanceUserdata:    "instance_userdata",
 }

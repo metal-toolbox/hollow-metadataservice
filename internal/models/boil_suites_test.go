@@ -13,77 +13,77 @@ import "testing"
 // Separating the tests thusly grants avoidance of Postgres deadlocks.
 func TestParent(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddresses)
-	t.Run("Metadata", testMetadata)
-	t.Run("Userdata", testUserdata)
+	t.Run("InstanceMetadata", testInstanceMetadata)
+	t.Run("InstanceUserdata", testInstanceUserdata)
 }
 
 func TestDelete(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesDelete)
-	t.Run("Metadata", testMetadataDelete)
-	t.Run("Userdata", testUserdataDelete)
+	t.Run("InstanceMetadata", testInstanceMetadataDelete)
+	t.Run("InstanceUserdata", testInstanceUserdataDelete)
 }
 
 func TestQueryDeleteAll(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesQueryDeleteAll)
-	t.Run("Metadata", testMetadataQueryDeleteAll)
-	t.Run("Userdata", testUserdataQueryDeleteAll)
+	t.Run("InstanceMetadata", testInstanceMetadataQueryDeleteAll)
+	t.Run("InstanceUserdata", testInstanceUserdataQueryDeleteAll)
 }
 
 func TestSliceDeleteAll(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesSliceDeleteAll)
-	t.Run("Metadata", testMetadataSliceDeleteAll)
-	t.Run("Userdata", testUserdataSliceDeleteAll)
+	t.Run("InstanceMetadata", testInstanceMetadataSliceDeleteAll)
+	t.Run("InstanceUserdata", testInstanceUserdataSliceDeleteAll)
 }
 
 func TestExists(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesExists)
-	t.Run("Metadata", testMetadataExists)
-	t.Run("Userdata", testUserdataExists)
+	t.Run("InstanceMetadata", testInstanceMetadataExists)
+	t.Run("InstanceUserdata", testInstanceUserdataExists)
 }
 
 func TestFind(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesFind)
-	t.Run("Metadata", testMetadataFind)
-	t.Run("Userdata", testUserdataFind)
+	t.Run("InstanceMetadata", testInstanceMetadataFind)
+	t.Run("InstanceUserdata", testInstanceUserdataFind)
 }
 
 func TestBind(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesBind)
-	t.Run("Metadata", testMetadataBind)
-	t.Run("Userdata", testUserdataBind)
+	t.Run("InstanceMetadata", testInstanceMetadataBind)
+	t.Run("InstanceUserdata", testInstanceUserdataBind)
 }
 
 func TestOne(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesOne)
-	t.Run("Metadata", testMetadataOne)
-	t.Run("Userdata", testUserdataOne)
+	t.Run("InstanceMetadata", testInstanceMetadataOne)
+	t.Run("InstanceUserdata", testInstanceUserdataOne)
 }
 
 func TestAll(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesAll)
-	t.Run("Metadata", testMetadataAll)
-	t.Run("Userdata", testUserdataAll)
+	t.Run("InstanceMetadata", testInstanceMetadataAll)
+	t.Run("InstanceUserdata", testInstanceUserdataAll)
 }
 
 func TestCount(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesCount)
-	t.Run("Metadata", testMetadataCount)
-	t.Run("Userdata", testUserdataCount)
+	t.Run("InstanceMetadata", testInstanceMetadataCount)
+	t.Run("InstanceUserdata", testInstanceUserdataCount)
 }
 
 func TestHooks(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesHooks)
-	t.Run("Metadata", testMetadataHooks)
-	t.Run("Userdata", testUserdataHooks)
+	t.Run("InstanceMetadata", testInstanceMetadataHooks)
+	t.Run("InstanceUserdata", testInstanceUserdataHooks)
 }
 
 func TestInsert(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesInsert)
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesInsertWhitelist)
-	t.Run("Metadata", testMetadataInsert)
-	t.Run("Metadata", testMetadataInsertWhitelist)
-	t.Run("Userdata", testUserdataInsert)
-	t.Run("Userdata", testUserdataInsertWhitelist)
+	t.Run("InstanceMetadata", testInstanceMetadataInsert)
+	t.Run("InstanceMetadata", testInstanceMetadataInsertWhitelist)
+	t.Run("InstanceUserdata", testInstanceUserdataInsert)
+	t.Run("InstanceUserdata", testInstanceUserdataInsertWhitelist)
 }
 
 // TestToOne tests cannot be run in parallel
@@ -128,30 +128,30 @@ func TestToManyRemove(t *testing.T) {}
 
 func TestReload(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesReload)
-	t.Run("Metadata", testMetadataReload)
-	t.Run("Userdata", testUserdataReload)
+	t.Run("InstanceMetadata", testInstanceMetadataReload)
+	t.Run("InstanceUserdata", testInstanceUserdataReload)
 }
 
 func TestReloadAll(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesReloadAll)
-	t.Run("Metadata", testMetadataReloadAll)
-	t.Run("Userdata", testUserdataReloadAll)
+	t.Run("InstanceMetadata", testInstanceMetadataReloadAll)
+	t.Run("InstanceUserdata", testInstanceUserdataReloadAll)
 }
 
 func TestSelect(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesSelect)
-	t.Run("Metadata", testMetadataSelect)
-	t.Run("Userdata", testUserdataSelect)
+	t.Run("InstanceMetadata", testInstanceMetadataSelect)
+	t.Run("InstanceUserdata", testInstanceUserdataSelect)
 }
 
 func TestUpdate(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesUpdate)
-	t.Run("Metadata", testMetadataUpdate)
-	t.Run("Userdata", testUserdataUpdate)
+	t.Run("InstanceMetadata", testInstanceMetadataUpdate)
+	t.Run("InstanceUserdata", testInstanceUserdataUpdate)
 }
 
 func TestSliceUpdateAll(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesSliceUpdateAll)
-	t.Run("Metadata", testMetadataSliceUpdateAll)
-	t.Run("Userdata", testUserdataSliceUpdateAll)
+	t.Run("InstanceMetadata", testInstanceMetadataSliceUpdateAll)
+	t.Run("InstanceUserdata", testInstanceUserdataSliceUpdateAll)
 }

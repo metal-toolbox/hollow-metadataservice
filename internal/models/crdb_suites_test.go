@@ -7,6 +7,6 @@ import "testing"
 
 func TestUpsert(t *testing.T) {
 	t.Run("InstanceIPAddresses", testInstanceIPAddressesUpsert)
-	t.Run("Metadata", testMetadataUpsert)
-	t.Run("Userdata", testUserdataUpsert)
+	t.Run("InstanceMetadata", testInstanceMetadataUpsert)
+	t.Run("InstanceUserdata", testInstanceUserdataUpsert)
 }
