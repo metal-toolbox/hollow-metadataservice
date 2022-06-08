@@ -7,7 +7,9 @@ CREATE TABLE instance_ip_addresses (
   address INET NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL
-)
+);
+
+CREATE INDEX ON instance_ip_addresses (address);
 
 -- +goose StatementEnd
 
