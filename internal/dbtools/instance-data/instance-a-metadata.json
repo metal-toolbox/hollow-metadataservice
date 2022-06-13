@@ -1,0 +1,203 @@
+{
+  "id": "316ed337-feee-48c6-a11b-3d4738e3cd6d",
+  "hostname": "instance-a",
+  "iqn": "iqn.2022-02.net.packet:device.316ed337",
+  "operating_system": {
+    "slug": "ubuntu_20_04",
+    "distro": "ubuntu",
+    "version": "20.04",
+    "license_activation": {
+      "state": "unlicensed"
+    },
+    "image_tag": "31853a2b0b2fcc4ee7fd5da5e53611303b60aafa"
+  },
+  "plan": "c3.medium.x86",
+  "reserved": false,
+  "class": "c3.medium.x86",
+  "facility": "da11",
+  "metro": "da",
+  "private_subnets": [
+    "10.0.0.0/8"
+  ],
+  "tags": [],
+  "ssh_keys": [
+    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCV2BCNvg7WQtMzcKHCNY6/qoFC8R6GJlKq3rQRcfJMkpmSGudHx8ojuyUaj04LjDFL5pkt2lnGT5aWo2N58Y1O/7diOUNUJrTy+ZWuliEfqE7hJwuszUjhYwhiuGk6UEw5/g+lfzTv1POEqMIg2cORI7OfmSs4tf7cXqY442rdDSv9H8LtqiBER47Et23sNrcDWbK57cc2/+nwqDWtmf7Nin4t8Kc5p2I4PFVsiXzRue7wKswJJp37ZOxlnbxAJ2BQ3PJwCf9Qe7Y/zAlqUnmDaERVZyDQSVIRE8XqRTh9UtcsGqi81WGLYnW63Nd3LkfJ2WdtfMkGjOGG4aRENvQtmWzyp1QM4A/n/25PbYB2VAogf8dIVjpUFek/tXcRPEUDT1skYFt8czimbmEMnRgjihIvS6oHybl2GnJ0zvpSA9MrZy+/9AkaW1M8QYuJdHQ9JcDpFKFkXMEVPW8uUGIc4rciBoeewbsunCV8StI1XnHpaqe1VhPhCA0JK74Tnv7MUTCN8YCY65Vp6Rq4nGlNA34bJ4A0b99atmo6vYr1rvHs6R6NC+mxLyvzBQYMzhXFBbzeyFNGDdw8eRQy5WGAfyvjTQMtOK6bDpKjc57np8qJrRhIM7+Y8ovF1GWEentBzQyWAcPilvq0fSzBNDQxr7GSSRRc5USqAk0NgZPXlQ== test@user.local",
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDPgTv1yUmNCGUcnCuFr94SQ0YqpuMwKSC022Fp2Q3TF test@user.local"
+  ],
+  "customdata": {},
+  "specs": {
+    "cpus": [
+      {
+        "count": 1,
+        "type": "AMD EPYC 7402P 24-Core Processor"
+      }
+    ],
+    "memory": {
+      "total": "64GB"
+    },
+    "drives": [
+      {
+        "count": 2,
+        "size": "240GB",
+        "type": "SSD",
+        "category": "boot"
+      },
+      {
+        "count": 2,
+        "size": "480GB",
+        "type": "SSD",
+        "category": "storage"
+      }
+    ],
+    "nics": [
+      {
+        "count": 2,
+        "type": "10Gbps"
+      }
+    ],
+    "features": {
+      "raid": true,
+      "txt": true,
+      "uefi": false
+    }
+  },
+  "switch_short_id": "5707e61f",
+  "storage_source": "default",
+  "storage": {
+    "disks": [
+      {
+        "device": "/dev/sda",
+        "wipeTable": true,
+        "partitions": [
+          {
+            "label": "BIOS",
+            "number": 1,
+            "size": 4096
+          },
+          {
+            "label": "SWAP",
+            "number": 2,
+            "size": "3993600"
+          },
+          {
+            "label": "ROOT",
+            "number": 3,
+            "size": 0
+          }
+        ]
+      }
+    ],
+    "filesystems": [
+      {
+        "mount": {
+          "device": "/dev/sda3",
+          "format": "ext4",
+          "point": "/",
+          "create": {
+            "options": [
+              "-L",
+              "ROOT"
+            ]
+          }
+        }
+      },
+      {
+        "mount": {
+          "device": "/dev/sda2",
+          "format": "swap",
+          "point": "none",
+          "create": {
+            "options": [
+              "-L",
+              "SWAP"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "volumes": [],
+  "boot_drive_hint": "MTFDDAV240TDU",
+  "network": {
+    "bonding": {
+      "mode": 4,
+      "link_aggregation": "mlag_ha",
+      "mac": "40:a6:b7:74:9f:10"
+    },
+    "interfaces": [
+      {
+        "name": "eth0",
+        "mac": "40:a6:b7:74:9f:10",
+        "bond": "bond0"
+      },
+      {
+        "name": "eth1",
+        "mac": "40:a6:b7:74:9f:11",
+        "bond": "bond0"
+      }
+    ],
+    "addresses": [
+      {
+        "id": "c662d032-2194-4ab0-a089-781aaf899bc2",
+        "address_family": 4,
+        "netmask": "255.255.255.254",
+        "created_at": "2022-02-25T18:55:11Z",
+        "public": true,
+        "cidr": 31,
+        "management": true,
+        "enabled": true,
+        "network": "139.178.82.2",
+        "address": "139.178.82.3",
+        "gateway": "139.178.82.2",
+        "parent_block": {
+          "network": "139.178.82.2",
+          "netmask": "255.255.255.254",
+          "cidr": 31,
+          "href": "/ips/7a6f46ce-0cd0-49b4-8849-7eeecc5b50c3"
+        }
+      },
+      {
+        "id": "9720049b-4da8-4646-a2bf-e8101f95f51a",
+        "address_family": 6,
+        "netmask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+        "created_at": "2022-02-25T18:55:11Z",
+        "public": true,
+        "cidr": 127,
+        "management": true,
+        "enabled": true,
+        "network": "2604:1380:4641:1f00::8",
+        "address": "2604:1380:4641:1f00::9",
+        "gateway": "2604:1380:4641:1f00::8",
+        "parent_block": {
+          "network": "2604:1380:4641:1f00:0000:0000:0000:0000",
+          "netmask": "ffff:ffff:ffff:ff00:0000:0000:0000:0000",
+          "cidr": 56,
+          "href": "/ips/5db9bc34-271e-43af-a223-323af6503bb5"
+        }
+      },
+      {
+        "id": "971cce2a-53a3-4d9e-b3e6-7068dd34b2ac",
+        "address_family": 4,
+        "netmask": "255.255.255.254",
+        "created_at": "2022-02-25T18:55:11Z",
+        "public": false,
+        "cidr": 31,
+        "management": true,
+        "enabled": true,
+        "network": "10.70.17.8",
+        "address": "10.70.17.9",
+        "gateway": "10.70.17.8",
+        "parent_block": {
+          "network": "10.70.17.0",
+          "netmask": "255.255.255.128",
+          "cidr": 25,
+          "href": "/ips/16e43eb1-7e1f-40ba-af6e-2c1041f1c4b5"
+        }
+      }
+    ],
+    "metal_gateways": []
+  },
+  "api_url": "https://metadata.packet.net",
+  "phone_home_url": "http://tinkerbell.da11.packet.net/phone-home",
+  "user_state_url": "http://tinkerbell.da11.packet.net/events"
+}
