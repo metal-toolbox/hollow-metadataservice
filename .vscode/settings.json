@@ -3,4 +3,5 @@
   "go.testFlags": [
     "--short"
   ],
+  "go.lintTool": "golangci-lint",
 }
