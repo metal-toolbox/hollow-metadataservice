@@ -37,23 +37,21 @@ vendor:
 	@go mod download
 	@go mod tidy
 
-# docker-up:
-# 	@docker-compose -f quickstart.yml up -d crdb
+docker-up:
+	@docker-compose -f quickstart.yml up -d crdb
 
-# docker-down:
-# 	@docker-compose -f quickstart.yml down
+docker-down:
+	@docker-compose -f quickstart.yml down
 
-# docker-clean:
-# 	@docker-compose -f quickstart.yml down --volumes
+docker-clean:
+	@docker-compose -f quickstart.yml down --volumes
 
 dev-database: | vendor
 	@cockroach sql --insecure -e "drop database if exists metadataservice"
 	@cockroach sql --insecure -e "create database metadataservice"
-# TODO: Uncomment after adding migrations
-# 	@METADATASERVICE_DB_URI="${DEV_DB}" go run main.go migrate up
+	@METADATASERVICE_DB_URI="${DEV_DB}" go run main.go migrate up
 
 test-database: | vendor
 	@cockroach sql --insecure -e "drop database if exists metadataservice_test"
 	@cockroach sql --insecure -e "create database metadataservice_test"
-# TODO: Uncomment after adding migrations
-# 	@METADATASERVICE_DB_URI="${TEST_DB}" go run main.go migrate up
+	@METADATASERVICE_DB_URI="${TEST_DB}" go run main.go migrate up
