@@ -35,9 +35,8 @@ jobs:
           version: v1.45
           args: --timeout=5m
 
-      # TODO: Enable after adding some models
-      # - name: Run go tests for generated models code
-      #   run: go test -race ./internal/models
+      - name: Run go tests for generated models code
+        run: go test -race ./internal/models
 
       # Don't include the models test that we tested above already. We don't want to calculate the test coverage from these into the app since we can't affect it
       - name: Run go tests and generate coverage report
