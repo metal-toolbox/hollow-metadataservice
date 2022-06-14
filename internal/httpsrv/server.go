@@ -7,9 +7,12 @@ import (
 	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
+
+	v1api "go.hollow.sh/metadataservice/pkg/api/v1"
 )
 
 // Server contains the HTTP server configuration
@@ -17,6 +20,7 @@ type Server struct {
 	Logger     *zap.Logger
 	Listen     string
 	Debug      bool
+	DB         *sqlx.DB
 	AuthConfig ginjwt.AuthConfig
 }
 
@@ -72,6 +76,13 @@ func (s *Server) setup() *gin.Engine {
 	r.GET("/healthz/liveness", s.livenessCheck)
 	r.GET("/healthz/readiness", s.readinessCheck)
 
+	v1Rtr := v1api.Router{DB: s.DB}
+
+	v1 := r.Group(v1api.V1URI)
+	{
+		v1Rtr.Routes(v1)
+	}
+
 	r.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "invalid request - route not found"})
 	})
@@ -113,7 +124,15 @@ func (s *Server) livenessCheck(c *gin.Context) {
 // requests. Currently our only dependency is the DB so we just ensure that it
 // is responding.
 func (s *Server) readinessCheck(c *gin.Context) {
-	// TODO: Implement DB check
+	if err := s.DB.PingContext(c.Request.Context()); err != nil {
+		s.Logger.Sugar().Errorf("readiness check db ping failed", "err", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status": "DOWN",
+		})
+
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status": "UP",
 	})

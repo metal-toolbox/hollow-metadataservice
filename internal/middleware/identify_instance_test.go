@@ -32,6 +32,12 @@ func TestIdentifyInstanceByIP(t *testing.T) {
 			false,
 			"",
 		},
+		{
+			"unknown IPv6 address",
+			"fe80::aede:48ff:fe00:1122",
+			false,
+			"",
+		},
 	}
 
 	// Instance A IPs
@@ -52,6 +58,17 @@ func TestIdentifyInstanceByIP(t *testing.T) {
 			hostIP,
 			true,
 			dbtools.FixtureInstanceB.InstanceID,
+		}
+		testCases = append(testCases, caseItem)
+	}
+
+	// Instance E IPs
+	for _, hostIP := range dbtools.FixtureInstanceE.HostIPs {
+		caseItem := testCase{
+			fmt.Sprintf("Instance E IP %s", hostIP),
+			hostIP,
+			true,
+			dbtools.FixtureInstanceE.InstanceID,
 		}
 		testCases = append(testCases, caseItem)
 	}

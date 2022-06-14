@@ -3,6 +3,7 @@ package middleware
 import (
 	"database/sql"
 	"errors"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
@@ -56,9 +57,7 @@ func IdentifyInstanceByIP(db *sqlx.DB) gin.HandlerFunc {
 
 		instanceIPAddress, err = models.InstanceIPAddresses(qm.Where("address >>= ?::inet", address)).One(c, db)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			// Internal server error, presumably
-			// TODO: raise error with whatever is the right way to do that for a gin middleware
-			return
+			c.AbortWithStatus(http.StatusInternalServerError)
 		}
 
 		if instanceIPAddress != nil {

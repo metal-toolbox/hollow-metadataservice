@@ -31,6 +31,8 @@ const (
 	instanceBUUID string = "37066580-de45-44ea-8cbb-eff3e932e3b1"
 	instanceCUUID string = "a830ee39-c037-4b27-8d4d-79da9e360568"
 	instanceDUUID string = "beb5a9eb-5703-44ff-9091-d41130747b8d"
+	instanceEUUID string = "93a9ffad-f636-49aa-96d9-fb894684978b"
+	instanceFUUID string = "d5377460-4eb3-454c-aa85-233f18f4ee28"
 )
 
 var (
@@ -42,6 +44,10 @@ var (
 	FixtureInstanceC *InstanceFixture
 	// FixtureInstanceD represents an instance with Metadata, no userdata, and no IPs
 	FixtureInstanceD *InstanceFixture
+	// FixtureInstanceE represents an instance with no Metadata, but with Userdata, and known IPs
+	FixtureInstanceE *InstanceFixture
+	// FixtureInstanceF represents an instance with no Metadata, but with Userdata, but no IPs
+	FixtureInstanceF *InstanceFixture
 
 	//go:embed instance-data/instance-a-metadata.json
 	instanceAMetadata []byte
@@ -55,14 +61,15 @@ var (
 	//go:embed instance-data/instance-d-metadata.json
 	instanceDMetadata []byte
 
-	//go:embed instance-data/instance-a-userdata.txt
-	instanceAUserdata []byte
+	//go:embed instance-data/userdata-example-1.txt
+	userdataExample1 []byte
 
-	//go:embed instance-data/instance-c-userdata.txt
-	instanceCUserdata []byte
+	//go:embed instance-data/userdata-example-2.txt
+	userdataExample2 []byte
 
 	instanceAIPs = []string{"139.178.82.3", "2604:1380:4641:1f00::9/127", "10.70.17.8/31"}
 	instanceBIPs = []string{"145.40.77.21", "2604:1380:4641:1f00::1/127", "10.1.2.8/29"}
+	instanceEIPs = []string{"172.16.1.12"}
 )
 
 func addFixtures() error {
@@ -84,6 +91,14 @@ func addFixtures() error {
 		return err
 	}
 
+	if err := setupInstanceE(ctx, testDB); err != nil {
+		return err
+	}
+
+	if err := setupInstanceF(ctx, testDB); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -97,7 +112,7 @@ func setupInstanceA(ctx context.Context, db *sqlx.DB) error {
 		},
 		InstanceUserdata: &models.InstanceUserdatum{
 			ID:       instanceAUUID,
-			Userdata: null.NewBytes([]byte(instanceAUserdata), true),
+			Userdata: null.NewBytes([]byte(userdataExample1), true),
 		},
 	}
 
@@ -164,7 +179,7 @@ func setupInstanceC(ctx context.Context, db *sqlx.DB) error {
 		},
 		InstanceUserdata: &models.InstanceUserdatum{
 			ID:       instanceCUUID,
-			Userdata: null.NewBytes([]byte(instanceCUserdata), true),
+			Userdata: null.NewBytes([]byte(userdataExample2), true),
 		},
 	}
 
@@ -189,6 +204,52 @@ func setupInstanceD(ctx context.Context, db *sqlx.DB) error {
 	}
 
 	if err := FixtureInstanceD.InstanceMetadata.Insert(ctx, db, boil.Infer()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setupInstanceE(ctx context.Context, db *sqlx.DB) error {
+	FixtureInstanceE = &InstanceFixture{
+		InstanceID: instanceEUUID,
+		HostIPs:    getIPs(instanceEIPs),
+		InstanceUserdata: &models.InstanceUserdatum{
+			ID:       instanceEUUID,
+			Userdata: null.NewBytes([]byte(userdataExample2), true),
+		},
+	}
+
+	if err := FixtureInstanceE.InstanceUserdata.Insert(ctx, db, boil.Infer()); err != nil {
+		return err
+	}
+
+	for _, address := range instanceEIPs {
+		instanceIPAddress := models.InstanceIPAddress{
+			InstanceID: instanceEUUID,
+			Address:    address,
+		}
+
+		if err := instanceIPAddress.Insert(ctx, db, boil.Infer()); err != nil {
+			return err
+		}
+
+		FixtureInstanceE.InstanceIPAddresses = append(FixtureInstanceE.InstanceIPAddresses, instanceIPAddress)
+	}
+
+	return nil
+}
+
+func setupInstanceF(ctx context.Context, db *sqlx.DB) error {
+	FixtureInstanceF = &InstanceFixture{
+		InstanceID: instanceFUUID,
+		InstanceUserdata: &models.InstanceUserdatum{
+			ID:       instanceFUUID,
+			Userdata: null.NewBytes([]byte(userdataExample2), true),
+		},
+	}
+
+	if err := FixtureInstanceF.InstanceUserdata.Insert(ctx, db, boil.Infer()); err != nil {
 		return err
 	}
 
