@@ -16,7 +16,7 @@ type ErrorResponse struct {
 
 func dbErrorResponse(c *gin.Context, err error) {
 	if errors.Is(err, sql.ErrNoRows) {
-		c.JSON(http.StatusNotFound, &ErrorResponse{Message: "resource not found"})
+		notFoundResponse(c)
 	} else {
 		c.JSON(http.StatusInternalServerError, &ErrorResponse{Error: "internal server error"})
 	}
