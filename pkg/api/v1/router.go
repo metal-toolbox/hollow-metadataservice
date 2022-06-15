@@ -6,8 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 
-	"go.hollow.sh/metadataservice/internal/middleware"
 	"go.hollow.sh/toolbox/ginjwt"
+
+	"go.hollow.sh/metadataservice/internal/middleware"
 )
 
 const (
@@ -25,19 +26,18 @@ type Router struct {
 	DB     *sqlx.DB
 }
 
-// // Routes will add the routes for this API version to a router group
-
+// Routes will add the routes for this API version to a router group
 func (r *Router) Routes(rg *gin.RouterGroup) {
-	// amw := r.AuthMW
-
 	rg.GET(MetadataURI, middleware.IdentifyInstanceByIP(r.DB), r.instanceMetadataGet)
 	rg.GET(UserdataURI, middleware.IdentifyInstanceByIP(r.DB), r.instanceUserdataGet)
 }
 
+// GetMetadataPath returns the path used to fetch Metadata
 func GetMetadataPath() string {
 	return path.Join(V1URI, MetadataURI)
 }
 
+// GetUserdataPath returns the path used to fetch Userdata
 func GetUserdataPath() string {
 	return path.Join(V1URI, UserdataURI)
 }
