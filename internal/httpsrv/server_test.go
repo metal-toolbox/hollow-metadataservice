@@ -6,10 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
 
+	"go.hollow.sh/metadataservice/internal/dbtools"
 	"go.hollow.sh/metadataservice/internal/httpsrv"
 )
 
@@ -50,6 +52,36 @@ func TestLivenessRoute(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequestWithContext(context.TODO(), "GET", "/healthz/liveness", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, `{"status":"UP"}`, w.Body.String())
+}
+
+func TestReadinessRouteDown(t *testing.T) {
+	db, _ := sqlx.Open("postgres", "localhost:12341")
+
+	hs := httpsrv.Server{Logger: zap.NewNop(), AuthConfig: serverAuthConfig, DB: db}
+	s := hs.NewServer()
+	router := s.Handler
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(context.TODO(), "GET", "/healthz/readiness", nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, 503, w.Code)
+	assert.Equal(t, `{"status":"DOWN"}`, w.Body.String())
+}
+
+func TestReadinessRouteUp(t *testing.T) {
+	db := dbtools.DatabaseTest(t)
+
+	hs := httpsrv.Server{Logger: zap.NewNop(), AuthConfig: serverAuthConfig, DB: db}
+	s := hs.NewServer()
+	router := s.Handler
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(context.TODO(), "GET", "/healthz/readiness", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, 200, w.Code)
