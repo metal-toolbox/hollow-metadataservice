@@ -63,6 +63,10 @@ func DatabaseTest(t *testing.T) *sqlx.DB {
 	return testDB
 }
 
+func TestDB() *sqlx.DB {
+	return testDB
+}
+
 // nolint
 func cleanDB() {
 	ctx := context.TODO()

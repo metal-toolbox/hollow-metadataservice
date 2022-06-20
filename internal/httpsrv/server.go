@@ -31,17 +31,16 @@ var (
 )
 
 func (s *Server) setup() *gin.Engine {
-	// TODO: Set up auth once we've added routes needing it...
-	// var (
-	// 	authMW *ginjwt.Middleware
-	// 	err    error
-	// )
-	//
-	// authMW, err = ginjwt.NewAuthMiddleware(s.AuthConfig)
-	// if err != nil {
-	// 	s.Logger.Sugar().Fatal("failed to initialize auth middleware", "error", err)
-	// }
-	//
+	var (
+		authMW *ginjwt.Middleware
+		err    error
+	)
+
+	authMW, err = ginjwt.NewAuthMiddleware(s.AuthConfig)
+	if err != nil {
+		s.Logger.Sugar().Fatal("failed to initialize auth middleware", "error", err)
+	}
+
 	// Setup default gin router
 	r := gin.New()
 
@@ -76,7 +75,7 @@ func (s *Server) setup() *gin.Engine {
 	r.GET("/healthz/liveness", s.livenessCheck)
 	r.GET("/healthz/readiness", s.readinessCheck)
 
-	v1Rtr := v1api.Router{DB: s.DB}
+	v1Rtr := v1api.Router{AuthMW: authMW, DB: s.DB, Logger: s.Logger}
 
 	v1 := r.Group(v1api.V1URI)
 	{
