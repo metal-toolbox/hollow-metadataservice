@@ -63,6 +63,7 @@ func DatabaseTest(t *testing.T) *sqlx.DB {
 	return testDB
 }
 
+// TestDB allows us to get a pointer to the current Test DB connection
 func TestDB() *sqlx.DB {
 	return testDB
 }
