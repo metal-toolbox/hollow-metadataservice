@@ -316,6 +316,14 @@ func TestSetMetadataCreateMetadata(t *testing.T) {
 		IPAddresses: []string{"192.168.0.1/25"},
 	}
 
+	// Assert that we don't have an existing record for InstanceID
+	exists, err := models.InstanceIPAddressExists(context.TODO(), testDB, requestBody.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.False(t, exists)
+
 	reqBody, err := json.Marshal(requestBody)
 	if err != nil {
 		t.Fatal(err)
@@ -354,6 +362,14 @@ func TestSetMetadataUpsertMetadata(t *testing.T) {
 	router := *testHTTPServer(t)
 	testDB := dbtools.TestDB()
 
+	// Assert that we have an existing record for InstanceID
+	exists, err := models.InstanceMetadatumExists(context.TODO(), testDB, dbtools.FixtureInstanceA.InstanceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.True(t, exists)
+
 	requestBody := &v1api.UpsertMetadataRequest{
 		ID:          dbtools.FixtureInstanceA.InstanceID,
 		Metadata:    `{"some": "json"}`,
@@ -373,6 +389,5 @@ func TestSetMetadataUpsertMetadata(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	instanceMetadata, _ := models.InstanceMetadata(models.InstanceMetadatumWhere.ID.EQ(dbtools.FixtureInstanceA.InstanceID)).One(context.TODO(), testDB)
-	_ = instanceMetadata.Reload(context.TODO(), testDB)
 	assert.Equal(t, requestBody.Metadata, instanceMetadata.Metadata.String())
 }

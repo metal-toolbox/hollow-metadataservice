@@ -70,7 +70,6 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 	// Validate the request body
 	if err := c.BindJSON(&params); err != nil {
 		badRequestResponse(c, "invalid request body", err)
-
 		return
 	}
 
