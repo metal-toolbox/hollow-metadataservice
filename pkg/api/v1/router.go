@@ -47,6 +47,7 @@ func (r *Router) Routes(rg *gin.RouterGroup) {
 
 	authMw := r.AuthMW
 	rg.POST(MetadataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("metadata")), r.instanceMetadataSet)
+	rg.POST(UserdataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("userdata")), r.instanceUserdataSet)
 }
 
 // GetMetadataPath returns the path used to fetch Metadata

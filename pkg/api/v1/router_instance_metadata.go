@@ -5,12 +5,30 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/types"
 
 	"go.hollow.sh/metadataservice/internal/middleware"
 	"go.hollow.sh/metadataservice/internal/models"
 )
+
+// upsertDataRequest is an interface defining the common traits shared between
+// the requests for upserting metadata and userdata. Namely, an instance ID and
+// a set of (optional) IP addresses.
+type upsertDataRequest interface {
+	getID() string
+	getIPAddresses() []string
+}
+
+// upsertRecord is a function defined in by each metadata or userdata upsert
+// handler function and passed into the general handleUpsertRequest function.
+// This lets us share the common functionality shared between both, like
+// handling conflicting IPs, adding new instance_ip_address rows, and
+// removing stale instance_ip_address rows can be handled generically while
+// delegating the specific implementation for handling upserting metadata
+// or userdata records back to the calling method.
+type upsertRecord func(c *gin.Context, exec boil.ContextExecutor) error
 
 // UpsertMetadataRequest contains the fields for inserting or updating an
 // instances metadata.
@@ -22,6 +40,34 @@ type UpsertMetadataRequest struct {
 
 func (upsertRequest *UpsertMetadataRequest) validate() error {
 	return validate.Struct(upsertRequest)
+}
+
+func (upsertRequest UpsertMetadataRequest) getID() string {
+	return upsertRequest.ID
+}
+
+func (upsertRequest UpsertMetadataRequest) getIPAddresses() []string {
+	return upsertRequest.IPAddresses
+}
+
+// UpsertUserdataRequest contains the fields for inserting or updating an
+// instances userdata.
+type UpsertUserdataRequest struct {
+	ID          string   `json:"id" validate:"required,uuid"`
+	Userdata    []byte   `json:"userdata"`
+	IPAddresses []string `json:"ipAddresses" validate:"dive,ip_addr|cidr"`
+}
+
+func (upsertRequest *UpsertUserdataRequest) validate() error {
+	return validate.Struct(upsertRequest)
+}
+
+func (upsertRequest UpsertUserdataRequest) getID() string {
+	return upsertRequest.ID
+}
+
+func (upsertRequest UpsertUserdataRequest) getIPAddresses() []string {
+	return upsertRequest.IPAddresses
 }
 
 func (r *Router) instanceMetadataGet(c *gin.Context) {
@@ -43,28 +89,48 @@ func (r *Router) instanceMetadataGet(c *gin.Context) {
 	c.JSON(http.StatusOK, metadata.Metadata)
 }
 
+func (r *Router) instanceUserdataGet(c *gin.Context) {
+	instanceID := c.GetString(middleware.ContextKeyInstanceID)
+	if instanceID == "" {
+		// TODO: Try to fetch the userdata from an external source of truth.
+		// Return 404 for now...
+		notFoundResponse(c)
+		return
+	}
+
+	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil {
+		dbErrorResponse(c, err)
+		return
+	}
+
+	c.String(http.StatusOK, string(userdata.Userdata.Bytes))
+}
+
+// There's a few steps we need to perform when upserting both instance_metadata
+// and instance_userdata:
+// 0. Validate the request body
+// 1. Look at the list of IP addresses -- see if there are any existing instance_ip_addresses
+// rows using the IP but not the same instance ID.
+// 2. Look for any instance_ip_address rows for the Instance ID specified in this request.
+// 3. Start a DB transaction
+// 4. If we identified rows in instance_ip_addresses that match on the IP address but not the instance ID,
+//    it means we're likely out-of-sync -- maybe the external system forgot to inform us that an instance
+//    has been deprovisioned or that the IP address is no longer being used for that instance.
+//    - 3a. We need to *at least* delete the old instance_ip_addresses row(s).
+//    - 3b. We may also want to go ahead and delete the instance_metadata / instance_userdata records
+//          associated to the IP as well. Or we might do this just when removing *the last*
+//          instance_ip_address record for the other instance ID (but only when the removal is
+//          happening due to conflict)
+// 5. Remove any "stale" instance_ip_address rows for the instance ID from the request. A row would
+//    be "stale" if it exists in the DB, but the associated IP address wasn't included in the request.
+// 6. Add any new instance_ip_address rows for the instance ID and IP addresses in the request
+// 7. Upsert the instance_metadata or instance_userdata record for this instance ID.
+// 8. Finish the transaction
+
 func (r *Router) instanceMetadataSet(c *gin.Context) {
 	params := UpsertMetadataRequest{}
-
-	// Steps we need to handle here:
-	// 0. Validate the request body
-	// 1. Look at the list of IP addresses -- see if there are any existing instance_ip_addresses
-	// rows using the IP but not the same instance ID.
-	// 2. Look for any instance_ip_address rows for the Instance ID specified in this request.
-	// 3. Start a DB transaction
-	// 4. If we identified rows in instance_ip_addresses that match on the IP address but not the instance ID,
-	//    it means we're likely out-of-sync -- maybe the external system forgot to inform us that an instance
-	//    has been deprovisioned or that the IP address is no longer being used for that instance.
-	//    - 3a. We need to *at least* delete the old instance_ip_addresses row(s).
-	//    - 3b. We may also want to go ahead and delete the instance_metadata / instance_userdata records
-	//          associated to the IP as well. Or we might do this just when removing *the last*
-	//          instance_ip_address record for the other instance ID (but only when the removal is
-	//          happening due to conflict)
-	// 5. Remove any "stale" instance_ip_address rows for the instance ID from the request. A row would
-	//    be "stale" if it exists in the DB, but the associated IP address wasn't included in the request.
-	// 6. Add any new instance_ip_address rows for the instance ID and IP addresses in the request
-	// 7. Upsert the instance_metadata record for this instance ID.
-	// 8. Finish the transaction
 
 	// Step 0
 	// Validate the request body
@@ -78,10 +144,49 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 		return
 	}
 
+	upsertInstanceMetadata := func(c *gin.Context, exec boil.ContextExecutor) error {
+		newInstanceMetadata := &models.InstanceMetadatum{
+			ID:       params.ID,
+			Metadata: types.JSON(params.Metadata),
+		}
+
+		return newInstanceMetadata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("metadata"), boil.Infer())
+	}
+
+	handleUpsertRequest(c, r, params, upsertInstanceMetadata)
+}
+
+func (r *Router) instanceUserdataSet(c *gin.Context) {
+	params := UpsertUserdataRequest{}
+
+	// Validate the request
+	if err := c.BindJSON(&params); err != nil {
+		badRequestResponse(c, "invalid request body", err)
+		return
+	}
+
+	if err := params.validate(); err != nil {
+		badRequestResponse(c, "invalid request", err)
+		return
+	}
+
+	upsertInstanceUserdata := func(c *gin.Context, exec boil.ContextExecutor) error {
+		newInstanceUserdata := &models.InstanceUserdatum{
+			ID:       params.ID,
+			Userdata: null.NewBytes(params.Userdata, true),
+		}
+
+		return newInstanceUserdata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("userdata"), boil.Infer())
+	}
+
+	handleUpsertRequest(c, r, params, upsertInstanceUserdata)
+}
+
+func handleUpsertRequest(c *gin.Context, r *Router, params upsertDataRequest, upsertRecordFunc upsertRecord) {
 	// Step 1
 	// Look for any conflicting IP addresses (IPs already present and associated
 	// with a *different* Instance ID)
-	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(params.IPAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(params.ID)).All(c, r.DB)
+	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(params.getIPAddresses()), models.InstanceIPAddressWhere.InstanceID.NEQ(params.getID())).All(c, r.DB)
 
 	if err != nil {
 		dbErrorResponse(c, err)
@@ -90,7 +195,7 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 
 	// Step 2
 	// Look up any existing instance_ip_addresses rows for the provided instance_id
-	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(params.ID)).All(c, r.DB)
+	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(params.getID())).All(c, r.DB)
 
 	if err != nil {
 		dbErrorResponse(c, err)
@@ -106,7 +211,7 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 	for _, instanceIP := range instanceIPAddresses {
 		found := false
 
-		for _, paramIP := range params.IPAddresses {
+		for _, paramIP := range params.getIPAddresses() {
 			if strings.EqualFold(instanceIP.Address, paramIP) {
 				found = true
 				break
@@ -123,7 +228,7 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 	// currently associated to the instance.
 	var newInstanceIPAddresses models.InstanceIPAddressSlice
 
-	for _, paramIP := range params.IPAddresses {
+	for _, paramIP := range params.getIPAddresses() {
 		found := false
 
 		for _, instanceIP := range instanceIPAddresses {
@@ -135,7 +240,7 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 
 		if !found {
 			newRecord := &models.InstanceIPAddress{
-				InstanceID: params.ID,
+				InstanceID: params.getID(),
 				Address:    paramIP,
 			}
 			newInstanceIPAddresses = append(newInstanceIPAddresses, newRecord)
@@ -152,7 +257,7 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 		return
 	}
 
-	// If there's an error, we'll want to rollback the transaction.
+	// // If there's an error, we'll want to rollback the transaction.
 	defer func() {
 		if txErr {
 			err := tx.Rollback()
@@ -208,17 +313,11 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 	}
 
 	// Step 7
-	// Upsert the instance_metadata table. This will create a new row with the
-	// provided instance ID and metadata if there is no current row for
-	// instance_id. If there is an existing row matching on instance_id, instead
-	// this will just update the metadata column value.
-	newInstanceMetadata := &models.InstanceMetadatum{
-		ID:       params.ID,
-		Metadata: types.JSON(params.Metadata),
-	}
-
-	err = newInstanceMetadata.Upsert(c, tx, true, []string{"id"}, boil.Whitelist("metadata"), boil.Infer())
-	if err != nil {
+	// Upsert the instance_metadata or instance_userdata table. This will create
+	// a new row with the provided instance ID and metadata or userdata if there
+	// is no current row for instance_id. If there is an existing row matching on
+	// instance_id, instead this will just update the metadata or userdata column value.
+	if err := upsertRecordFunc(c, tx); err != nil {
 		txErr = true
 
 		dbErrorResponse(c, err)
@@ -228,8 +327,8 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 
 	// Step 8
 	// Commit our transaction
-	err = tx.Commit()
-	if err != nil {
+	// if err := c.BindJSON(&params); err != nil {
+	if err := tx.Commit(); err != nil {
 		txErr = true
 
 		dbErrorResponse(c, err)
