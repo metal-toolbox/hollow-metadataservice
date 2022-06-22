@@ -78,6 +78,12 @@ func (s *Server) setup() *gin.Engine {
 
 	v1Rtr := v1api.Router{AuthMW: authMW, DB: s.DB, Logger: s.Logger}
 
+	// Host our latest version of the API under / in addition to /api/v*
+	latest := r.Group("/")
+	{
+		v1Rtr.Routes(latest)
+	}
+
 	v1 := r.Group(v1api.V1URI)
 	{
 		v1Rtr.Routes(v1)
