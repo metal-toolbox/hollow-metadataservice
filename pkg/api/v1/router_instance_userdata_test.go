@@ -186,7 +186,7 @@ func TestSetUserdataRequestValidations(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 
-			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetUserdataPath(), bytes.NewReader(reqBody))
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetInternalUserdataPath(), bytes.NewReader(reqBody))
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, testcase.expectedStatus, w.Code)
@@ -282,7 +282,7 @@ func TestSetUserdataIPAddressConflict(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetUserdataPath(), bytes.NewReader(reqBody))
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetInternalUserdataPath(), bytes.NewReader(reqBody))
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusOK, w.Code)
@@ -330,7 +330,7 @@ func TestSetUserdataCreateUserdata(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetUserdataPath(), bytes.NewReader(reqBody))
+	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetInternalUserdataPath(), bytes.NewReader(reqBody))
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -382,7 +382,7 @@ func TestSetUserdataUpsertUserdata(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetUserdataPath(), bytes.NewReader(reqBody))
+	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetInternalUserdataPath(), bytes.NewReader(reqBody))
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

@@ -187,7 +187,7 @@ func TestSetMetadataRequestValidations(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 
-			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetMetadataPath(), bytes.NewReader(reqBody))
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetInternalMetadataPath(), bytes.NewReader(reqBody))
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, testcase.expectedStatus, w.Code)
@@ -283,7 +283,7 @@ func TestSetMetadataIPAddressConflict(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetMetadataPath(), bytes.NewReader(reqBody))
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetInternalMetadataPath(), bytes.NewReader(reqBody))
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusOK, w.Code)
@@ -331,7 +331,7 @@ func TestSetMetadataCreateMetadata(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetMetadataPath(), bytes.NewReader(reqBody))
+	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetInternalMetadataPath(), bytes.NewReader(reqBody))
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -383,7 +383,7 @@ func TestSetMetadataUpsertMetadata(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetMetadataPath(), bytes.NewReader(reqBody))
+	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, v1api.GetInternalMetadataPath(), bytes.NewReader(reqBody))
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

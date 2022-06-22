@@ -19,10 +19,22 @@ import (
 const (
 	// V1URI is the path prefix for all v1 endpoints
 	V1URI = "/api/v1"
-	// MetadataURI is the path to the regular metadata endpoint
+
+	// MetadataURI is the path to the regular metadata endpoint, called by the
+	// instances themselves to retrieve their metadata.
 	MetadataURI = "/metadata"
-	// UserdataURI is the path to the regular userdata endpoint
+
+	// UserdataURI is the path to the regular userdata endpoint, called by the
+	// instances themselves to retrieve their userdata.
 	UserdataURI = "/userdata"
+
+	// InternalMetadataURI is the path to the internal (authenticated) endpoint
+	// used for updating & retrieving metadata for any instance
+	InternalMetadataURI = "/device-metadata"
+
+	// InternalUserdataURI is the path to the internal (authenticated) endpoint
+	// used for updating & retrieving metadata for any instance
+	InternalUserdataURI = "/device-userdata"
 
 	scopePrefix = "metadata"
 )
@@ -46,18 +58,30 @@ func (r *Router) Routes(rg *gin.RouterGroup) {
 	rg.GET(UserdataURI, middleware.IdentifyInstanceByIP(r.DB), r.instanceUserdataGet)
 
 	authMw := r.AuthMW
-	rg.POST(MetadataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("metadata")), r.instanceMetadataSet)
-	rg.POST(UserdataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("userdata")), r.instanceUserdataSet)
+	rg.POST(InternalMetadataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("metadata")), r.instanceMetadataSet)
+	rg.POST(InternalUserdataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("userdata")), r.instanceUserdataSet)
 }
 
-// GetMetadataPath returns the path used to fetch Metadata
+// GetMetadataPath returns the path used by an instance to fetch Metadata
 func GetMetadataPath() string {
 	return path.Join(V1URI, MetadataURI)
 }
 
-// GetUserdataPath returns the path used to fetch Userdata
+// GetUserdataPath returns the path used by an instance to fetch Userdata
 func GetUserdataPath() string {
 	return path.Join(V1URI, UserdataURI)
+}
+
+// GetInternalMetadataPath returns the patch used by an internal, authenticated
+// system or used to update or retrieve metadata.
+func GetInternalMetadataPath() string {
+	return path.Join(V1URI, InternalMetadataURI)
+}
+
+// GetInternalUserdataPath returns the patch used by an internal, authenticated
+// system or used to update or retrieve userdata.
+func GetInternalUserdataPath() string {
+	return path.Join(V1URI, InternalUserdataURI)
 }
 
 func upsertScopes(items ...string) []string {
