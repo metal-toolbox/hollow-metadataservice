@@ -1,11 +1,10 @@
 package metadataservice
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -44,39 +43,76 @@ func (r *Router) instanceEc2MetadataGet(c *gin.Context) {
 		return
 	}
 
-	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
-
-	// Loading the metadata json into a generic map[string]interface loses the
-	// ordering of the keys in the json document. We can use Decoder.Token to
-	// step through the json and extract the keys, allowing us to preserve the
-	// key order from the original metadata document.
-
-	decoder := json.NewDecoder(bytes.NewReader(metadata.Metadata))
-
-	for {
-		t, err := decoder.Token()
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			fmt.Println("Error getting token: ", err)
-		}
-
-		fmt.Printf("%T: %v", t, t)
-		if decoder.More() {
-			fmt.Printf(" (more) ")
-		}
-		fmt.Printf("\n")
-	}
+	instanceMetadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
 		dbErrorResponse(c, err)
 		return
 	}
 
-	// TODO: Extract requested key from metadata, this response is just a placeholder for now...
-	c.JSON(http.StatusOK, metadata.Metadata)
+	var metadata = make(map[string]interface{})
+	err = json.Unmarshal([]byte(instanceMetadata.Metadata), &metadata)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, &ErrorResponse{Errors: []string{"Invalid metadata for instance"}})
+		return
+	}
+
+	standardItems := []string{
+		"instance-id", "hostname", "iqn", "plan", "facility", "tags",
+		"operating-system", "public-keys",
+	}
+	spotItems := getSpotItems(metadata)
+	networkItems := getNetworkItems(metadata)
+
+	var metadataItems []string = make([]string, len(standardItems)+len(spotItems)+len(networkItems))
+
+	metadataItems = append(metadataItems, standardItems...)
+	metadataItems = append(metadataItems, spotItems...)
+	metadataItems = append(metadataItems, networkItems...)
+
+	var sb strings.Builder
+	for _, item := range metadataItems {
+		sb.WriteString(fmt.Sprintf("%s\n", item))
+	}
+
+	c.String(http.StatusOK, sb.String())
+}
+
+func getSpotItems(metadata map[string]interface{}) []string {
+	var spotItems []string
+
+	if _, ok := metadata["spot"]; ok {
+		spotItems = []string{"spot"}
+	}
+
+	return spotItems
+}
+
+func getNetworkItems(metadata map[string]interface{}) []string {
+	var networkItems []string
+
+	network, ok := metadata["network"]
+	if !ok {
+		return networkItems
+	}
+
+	networkMap, ok := network.(map[string]interface{})
+	if !ok {
+		return networkItems
+	}
+
+	addresses, ok := networkMap["addresses"]
+	if !ok {
+		return networkItems
+	}
+
+	addressSlice, ok := addresses.([]map[string]interface{})
+	if !ok {
+		return networkItems
+	}
+
+	return networkItems
 }
 
 func (r *Router) instanceEc2MetadataItemGet(c *gin.Context) {
