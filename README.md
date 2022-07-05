@@ -4,7 +4,7 @@ A service for storing and retrieving instance metadata and userdata, brought to 
 ## What is it?
 When a new cloud instance is provisioned, often it will need additional information to fully bootstrap itself, beyond what may be specified in the OS image installed on the instance. A metadata service allows an instance to request some of that additional information without needing any pre-defined authentication information baked-in to the OS image.
 
-Additionally, instance user data can be used to specify simple scripts or cloud-init configurations that will run when the instance first boots after provisioning. Combined with instance metadata this offers a powerful mechanism to automate provisioning instances into a ready-to-use state, without needing to manually perform additional configuration tasks after the instance becomes active.
+Additionally, instance userdata can be used to specify simple scripts or cloud-init configurations that will run when the instance first boots after provisioning. Combined with instance metadata this offers a powerful mechanism to automate provisioning instances into a ready-to-use state, without needing to manually perform additional configuration tasks after the instance becomes active.
 
 See [https://metal.equinix.com/developers/docs/server-metadata/metadata/](https://metal.equinix.com/developers/docs/server-metadata/metadata/) for more.
 
