@@ -4,15 +4,15 @@ go 1.17
 
 require (
 	github.com/cockroachdb/cockroach-go/v2 v2.2.8
-	github.com/gin-contrib/cors v1.3.1
+	github.com/gin-contrib/cors v1.4.0
 	github.com/gin-contrib/zap v0.0.2
-	github.com/gin-gonic/gin v1.8.0
+	github.com/gin-gonic/gin v1.8.1
 	github.com/go-playground/validator/v10 v10.10.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pressly/goose/v3 v3.5.3
 	github.com/spf13/cobra v1.4.0
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.8.0
 	github.com/volatiletech/sqlboiler/v4 v4.11.0
 	github.com/zsais/go-gin-prometheus v0.1.0
 	go.hollow.sh/toolbox v0.1.4
@@ -85,7 +85,7 @@ require (
 	gopkg.in/ini.v1 v1.66.2 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/gin-contrib/zap => github.com/thinkgos/zap v0.0.2-0.20210226022008-5b2cf0c4d297
