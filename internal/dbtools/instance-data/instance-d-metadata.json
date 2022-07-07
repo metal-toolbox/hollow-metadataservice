@@ -138,8 +138,5 @@
     ],
     "addresses": [],
     "metal_gateways": []
-  },
-  "api_url": "https://metadata.packet.net",
-  "phone_home_url": "http://tinkerbell.da11.packet.net/phone-home",
-  "user_state_url": "http://tinkerbell.da11.packet.net/events"
+  }
 }
