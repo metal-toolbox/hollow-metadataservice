@@ -17,7 +17,7 @@ Any time after instance provisioning has begun, it can issue a request to retrie
 The service offers two "flavors" of metadata -- a standard JSON format, and an "ec2-style" format.
 
 ### Standard JSON Format
-The standard JSON metadata format includes (but is not limited to) the following fields:
+The standard JSON metadata format may include (but is not limited to) the following fields:
 - `id` - (uuid) The unique ID of the instance.
 - `hostname` - (string) The hostname of the instance.
 - `operating_system` - (object) A JSON object containing information about the OS installed on the instance.
@@ -28,7 +28,7 @@ The standard JSON metadata format includes (but is not limited to) the following
 - `class` - (string) A slug-formatted version of the hardware plan.
 - `facility` - (string) The facility code of the location in which the instance has been provisioned.
 - `tags` - (array) A list of strings that were specified when the instance was provisioned. Typically set by users for grouping instances or hinting at their expected roles. Example: `["worker"]`
-- `ssh_keys` - (array) A list of the public SSH keys allowed to access the instance.
+- `ssh_keys` - (array) A list of the SSH public keys allowed to access the instance.
 - `specs` - (object) A JSON object containing information about the server's hardware specs, such as CPUs, RAM, disks, network interfaces, and additional features enabled for the server.
     - `cpus` - (array) A list of JSON objects with processor types and counts.
     - `memory` - (object) A JSON object with the instances' total memory.
@@ -38,8 +38,10 @@ The standard JSON metadata format includes (but is not limited to) the following
     - `bonding` - (object) A JSON object containing information about the network bond configuration for the instance.
     - `interfaces` - (array) A list of JSON objects containing information about the individual network interfaces on the instance, such as MAC addresses and bond.
     - `addresses` - (array) A list of JSON objects containing information about the IP addresses assigned to the instance, like address, address family, and whether the address is public or private.
-- `phone_home_url` - (string) The URL to which the instance can issue a request to indicate that it has completed provisioning. This is used when provisioning with a custom OS or iPXE-based provisioning.
-- `user_state_url` - (string) The URL to which the instance can issue requests to create or view events related to the provisioning process. See [https://metal.equinix.com/developers/docs/server-metadata/user-state/](https://metal.equinix.com/developers/docs/server-metadata/user-state/) for more information.
+- `spot` - (object) A JSON object containing spot market-related information (if instance was provisioned as a spot market instance)
+    - `termination_time` - (string) A timestamp indicating the termination time for the instance.
+
+Not all fields are required (for example, the metadata JSON for aa non-spot market instance will not include the `spot` field), and additional fields may be specified as needed.
 
 #### An Example Metadata JSON object
 The following is an example of the Metadata JSON returned for an Equinix Metal instance.
