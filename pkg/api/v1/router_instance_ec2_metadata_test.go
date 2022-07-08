@@ -14,6 +14,117 @@ import (
 	v1api "go.hollow.sh/metadataservice/pkg/api/v1"
 )
 
+func TestGetEc2MetadataByIP(t *testing.T) {
+	router := *testHTTPServer(t)
+
+	type testCase struct {
+		testName       string
+		instanceIP     string
+		expectedStatus int
+		expectedBody   string
+	}
+
+	testCases := []testCase{
+		{
+			"unknown IPv4 address",
+			"1.2.3.4",
+			http.StatusNotFound,
+			"",
+		},
+		{
+			"unknown IPv6 address",
+			"fe80::aede:48ff:fe00:1122",
+			http.StatusNotFound,
+			"",
+		},
+	}
+
+	standardFields := "instance-id\nhostname\niqn\nplan\nfacility\ntags\noperating-system\npublic-keys"
+
+	// Instance A tests
+	// Instance A has all 3 ip types, but no spot market info
+	for _, hostIP := range dbtools.FixtureInstanceA.HostIPs {
+		caseItem := testCase{
+			fmt.Sprintf("Instance A IP %s", hostIP),
+			hostIP,
+			http.StatusOK,
+			fmt.Sprintf("%s\npublic-ipv4\npublic-ipv6\nlocal-ipv4", standardFields),
+		}
+
+		testCases = append(testCases, caseItem)
+	}
+
+	// Instance A1 tests
+	// Instance A1 has an IPv6 and local IPv4 address, but no public IPv4 address
+	for _, hostIP := range dbtools.FixtureInstanceA1.HostIPs {
+		caseItem := testCase{
+			fmt.Sprintf("Instance A1 IP %s", hostIP),
+			hostIP,
+			http.StatusOK,
+			fmt.Sprintf("%s\npublic-ipv6\nlocal-ipv4", standardFields),
+		}
+
+		testCases = append(testCases, caseItem)
+	}
+
+	// Instance A2 tests
+	// Instance A2 has a local IPv4 address, but no public IPv4 or IPv6 addresses.
+	// Instance A2 additionally has spot market-related info
+	for _, hostIP := range dbtools.FixtureInstanceA2.HostIPs {
+		caseItem := testCase{
+			fmt.Sprintf("Instance A2 IP %s", hostIP),
+			hostIP,
+			http.StatusOK,
+			fmt.Sprintf("%s\nspot\nlocal-ipv4", standardFields),
+		}
+
+		testCases = append(testCases, caseItem)
+	}
+
+	// Instance B tests
+	// Instance B has all 3 ip types, but no spot market info
+	for _, hostIP := range dbtools.FixtureInstanceB.HostIPs {
+		caseItem := testCase{
+			fmt.Sprintf("Instance B IP %s", hostIP),
+			hostIP,
+			http.StatusOK,
+			fmt.Sprintf("%s\npublic-ipv4\npublic-ipv6\nlocal-ipv4", standardFields),
+		}
+
+		testCases = append(testCases, caseItem)
+	}
+
+	// Instance E tests
+	// Instance E does not have any metadata, so *for now* we should expect it to return 404.
+	// Once we've implemented the call-out-to-external-service bits, we'll need to update this test.
+	for _, hostIP := range dbtools.FixtureInstanceE.HostIPs {
+		caseItem := testCase{
+			fmt.Sprintf("Instance E IP %s", hostIP),
+			hostIP,
+			http.StatusNotFound,
+			"",
+		}
+
+		testCases = append(testCases, caseItem)
+	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetEc2MetadataPath(), nil)
+			req.RemoteAddr = net.JoinHostPort(testcase.instanceIP, "0")
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+
+			if testcase.expectedStatus == http.StatusOK {
+				assert.Equal(t, testcase.expectedBody, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestGetEc2MetadataItemByIP(t *testing.T) {
 	router := *testHTTPServer(t)
 
@@ -264,122 +375,26 @@ func TestGetEc2MetadataItemByIP(t *testing.T) {
 		testCases = append(testCases, a2Cases...)
 	}
 
+	// Instance E tests
+	// Instance E does not have any metadata, so *for now* we should expect it to return 404.
+	// Once we've implemented the call-out-to-external-service bits, we'll need to update this test.
+	for _, hostIP := range dbtools.FixtureInstanceE.HostIPs {
+		testcase := itemTestCase{
+			fmt.Sprintf("Instance E IP %s-instance-id", hostIP),
+			"instance-id",
+			hostIP,
+			http.StatusNotFound,
+			"",
+		}
+
+		testCases = append(testCases, testcase)
+	}
+
 	for _, testcase := range testCases {
 		t.Run(testcase.testName, func(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetEc2MetadataItemPath(testcase.itemName), nil)
-			req.RemoteAddr = net.JoinHostPort(testcase.instanceIP, "0")
-			router.ServeHTTP(w, req)
-
-			assert.Equal(t, testcase.expectedStatus, w.Code)
-
-			if testcase.expectedStatus == http.StatusOK {
-				assert.Equal(t, testcase.expectedBody, w.Body.String())
-			}
-		})
-	}
-}
-
-func TestGetEc2MetadataByIP(t *testing.T) {
-	router := *testHTTPServer(t)
-
-	type testCase struct {
-		testName       string
-		instanceIP     string
-		expectedStatus int
-		expectedBody   string
-	}
-
-	testCases := []testCase{
-		{
-			"unknown IPv4 address",
-			"1.2.3.4",
-			http.StatusNotFound,
-			"",
-		},
-		{
-			"unknown IPv6 address",
-			"fe80::aede:48ff:fe00:1122",
-			http.StatusNotFound,
-			"",
-		},
-	}
-
-	standardFields := "instance-id\nhostname\niqn\nplan\nfacility\ntags\noperating-system\npublic-keys"
-
-	// Instance A tests
-	// Instance A has all 3 ip types, but no spot market info
-	for _, hostIP := range dbtools.FixtureInstanceA.HostIPs {
-		caseItem := testCase{
-			fmt.Sprintf("Instance A IP %s", hostIP),
-			hostIP,
-			http.StatusOK,
-			fmt.Sprintf("%s\npublic-ipv4\npublic-ipv6\nlocal-ipv4", standardFields),
-		}
-
-		testCases = append(testCases, caseItem)
-	}
-
-	// Instance A1 tests
-	// Instance A1 has an IPv6 and local IPv4 address, but no public IPv4 address
-	for _, hostIP := range dbtools.FixtureInstanceA1.HostIPs {
-		caseItem := testCase{
-			fmt.Sprintf("Instance A1 IP %s", hostIP),
-			hostIP,
-			http.StatusOK,
-			fmt.Sprintf("%s\npublic-ipv6\nlocal-ipv4", standardFields),
-		}
-
-		testCases = append(testCases, caseItem)
-	}
-
-	// Instance A2 tests
-	// Instance A2 has a local IPv4 address, but no public IPv4 or IPv6 addresses.
-	// Instance A2 additionally has spot market-related info
-	for _, hostIP := range dbtools.FixtureInstanceA2.HostIPs {
-		caseItem := testCase{
-			fmt.Sprintf("Instance A2 IP %s", hostIP),
-			hostIP,
-			http.StatusOK,
-			fmt.Sprintf("%s\nspot\nlocal-ipv4", standardFields),
-		}
-
-		testCases = append(testCases, caseItem)
-	}
-
-	// Instance B tests
-	// Instance B has all 3 ip types, but no spot market info
-	for _, hostIP := range dbtools.FixtureInstanceB.HostIPs {
-		caseItem := testCase{
-			fmt.Sprintf("Instance B IP %s", hostIP),
-			hostIP,
-			http.StatusOK,
-			fmt.Sprintf("%s\npublic-ipv4\npublic-ipv6\nlocal-ipv4", standardFields),
-		}
-
-		testCases = append(testCases, caseItem)
-	}
-
-	// Instance E tests
-	// Instance E does not have any metadata, so *for now* we should expect it to return 404.
-	// Once we've implemented the call-out-to-external-service bits, we'll need to update this test.
-	for _, hostIP := range dbtools.FixtureInstanceE.HostIPs {
-		caseItem := testCase{
-			fmt.Sprintf("Instance E IP %s", hostIP),
-			hostIP,
-			http.StatusNotFound,
-			"",
-		}
-
-		testCases = append(testCases, caseItem)
-	}
-
-	for _, testcase := range testCases {
-		t.Run(testcase.testName, func(t *testing.T) {
-			w := httptest.NewRecorder()
-
-			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetEc2MetadataPath(), nil)
 			req.RemoteAddr = net.JoinHostPort(testcase.instanceIP, "0")
 			router.ServeHTTP(w, req)
 
