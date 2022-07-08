@@ -1,7 +1,9 @@
 package metadataservice
 
 import (
+	"fmt"
 	"path"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -18,7 +20,7 @@ const (
 
 	// Ec2MetadataItemURI is the path to the ec2-style metadata endpoint for
 	// retrieving a specified metadata item value.
-	Ec2MetadataItemURI = "/meta-data/:item-name"
+	Ec2MetadataItemURI = "/meta-data/*subpath"
 
 	// Ec2UserdataURI is the path to the ec2-style userdata endpoint
 	Ec2UserdataURI = "/user-data"
@@ -40,9 +42,12 @@ func GetEc2MetadataPath() string {
 }
 
 // GetEc2MetadataItemPath returns the path used to fetch a specific metadata
-// item
-func GetEc2MetadataItemPath() string {
-	return path.Join(V20090404URI, Ec2MetadataItemURI)
+// item.
+// Ex: GetEx2MetadataItemPath("foo/bar/baz") returns:
+// "/2009-04-04/meta-data/foo/bar/baz"
+func GetEc2MetadataItemPath(itemPath string) string {
+	trimmed := strings.Trim(itemPath, "/")
+	return path.Join(V20090404URI, fmt.Sprintf("%s/%s", Ec2MetadataURI, trimmed))
 }
 
 // GetEc2UserdataPath returns the path used to fetch ec2-style userdata

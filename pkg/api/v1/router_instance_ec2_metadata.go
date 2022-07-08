@@ -2,7 +2,6 @@ package metadataservice
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -10,30 +9,36 @@ import (
 
 	"go.hollow.sh/metadataservice/internal/middleware"
 	"go.hollow.sh/metadataservice/internal/models"
+	"go.hollow.sh/metadataservice/pkg/api/v1/ec2"
 )
 
-// var (
-// 	metadataKeyFieldMap map[string]string = map[string]string{
-// 		"instance-id": "id",
-// 		"hostname": "hostname",
-// 		"iqn": "iqn",
-// 		"plan": "plan",
-// 		"facility": "facility",
-// 		"tags": "tags",
-// 		"operating-system": "operating_system",
-// 		"public-keys": "ssh_keys",
-// 		"spot": "spot",
-// 	}
+// Current top-level items available:
+// instance-id
+// hostname
+// iqn
+// plan
+// facility
+// tags
+// operating-system
+// public-keys
+// spot
+// public-ipv4
+// public-ipv6
+// local-ipv4
 
-// 	spotKeyFieldMap map[string]string = map[string]string{
-// 		"termination-time": "termination_time",
-// 	}
+// operating-system items:
+// slug
+// distro
+// version
+// license_activation
+//   - state
+// image_tag
 
-// 	networkKeyFieldMap map[string]string = map[string]string{
-// 		"public-ipv4"
-// 	}
-// )
+// spot items:
+// termination-time
 
+// instanceEc2MetadataGet returns the list of top-level metadata item names
+// which can be subsequently queried by the caller.
 func (r *Router) instanceEc2MetadataGet(c *gin.Context) {
 	instanceID := c.GetString(middleware.ContextKeyInstanceID)
 	if instanceID == "" {
@@ -50,7 +55,8 @@ func (r *Router) instanceEc2MetadataGet(c *gin.Context) {
 		return
 	}
 
-	var metadata = make(map[string]interface{})
+	var metadata = ec2.Metadata{}
+
 	err = json.Unmarshal([]byte(instanceMetadata.Metadata), &metadata)
 
 	if err != nil {
@@ -58,61 +64,7 @@ func (r *Router) instanceEc2MetadataGet(c *gin.Context) {
 		return
 	}
 
-	standardItems := []string{
-		"instance-id", "hostname", "iqn", "plan", "facility", "tags",
-		"operating-system", "public-keys",
-	}
-	spotItems := getSpotItems(metadata)
-	networkItems := getNetworkItems(metadata)
-
-	var metadataItems []string = make([]string, len(standardItems)+len(spotItems)+len(networkItems))
-
-	metadataItems = append(metadataItems, standardItems...)
-	metadataItems = append(metadataItems, spotItems...)
-	metadataItems = append(metadataItems, networkItems...)
-
-	var sb strings.Builder
-	for _, item := range metadataItems {
-		sb.WriteString(fmt.Sprintf("%s\n", item))
-	}
-
-	c.String(http.StatusOK, sb.String())
-}
-
-func getSpotItems(metadata map[string]interface{}) []string {
-	var spotItems []string
-
-	if _, ok := metadata["spot"]; ok {
-		spotItems = []string{"spot"}
-	}
-
-	return spotItems
-}
-
-func getNetworkItems(metadata map[string]interface{}) []string {
-	var networkItems []string
-
-	network, ok := metadata["network"]
-	if !ok {
-		return networkItems
-	}
-
-	networkMap, ok := network.(map[string]interface{})
-	if !ok {
-		return networkItems
-	}
-
-	addresses, ok := networkMap["addresses"]
-	if !ok {
-		return networkItems
-	}
-
-	addressSlice, ok := addresses.([]map[string]interface{})
-	if !ok {
-		return networkItems
-	}
-
-	return networkItems
+	c.String(http.StatusOK, strings.Join(metadata.ItemNames(), "\n"))
 }
 
 func (r *Router) instanceEc2MetadataItemGet(c *gin.Context) {
@@ -124,15 +76,33 @@ func (r *Router) instanceEc2MetadataItemGet(c *gin.Context) {
 		return
 	}
 
-	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+	instanceMetadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
 		dbErrorResponse(c, err)
 		return
 	}
 
-	// TODO: Extract requested key from metadata, this response is just a placeholder for now...
-	c.JSON(http.StatusOK, metadata.Metadata)
+	var metadata = ec2.Metadata{}
+
+	err = json.Unmarshal([]byte(instanceMetadata.Metadata), &metadata)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, &ErrorResponse{Errors: []string{"Invalid metadata for instance"}})
+		return
+	}
+
+	if subPath, ok := c.Params.Get("subpath"); ok {
+		if result, ok := metadata.GetItem(subPath); ok {
+			c.String(http.StatusOK, strings.Join(result, "\n"))
+			return
+		}
+	}
+
+	// If we're here, that means that either there wasn't a subpath item, or we
+	// couldn't find the item in the metadata for the instance. In that case,
+	// just return a 404.
+	notFoundResponse(c)
 }
 
 func (r *Router) instanceEc2UserdataGet(c *gin.Context) {
@@ -152,33 +122,4 @@ func (r *Router) instanceEc2UserdataGet(c *gin.Context) {
 	}
 
 	c.String(http.StatusOK, string(userdata.Userdata.Bytes))
-}
-
-func spotKeys(metadata map[string]interface{}) []string {
-	if _, hasSpot := metadata["spot"]; hasSpot {
-		return []string{"spot"}
-	}
-
-	return []string{}
-}
-
-func networkKeys(metadata map[string]interface{}) []string {
-	if networkData, hasNetwork := metadata["network"]; hasNetwork {
-		if networkDataMap, ok := networkData.(map[string]interface{}); ok {
-			if addresses, hasAddresses := networkDataMap["addresses"]; hasAddresses {
-				if addressesSlice, ok := addresses.([]map[string]interface{}); ok {
-					var ipKeys []string
-					for _, address := range addressesSlice {
-						ipKeys = append(ipKeys, addressKey(address))
-					}
-				}
-			}
-		}
-	}
-
-	return []string{}
-}
-
-func addressKey(address map[string]interface{}) string {
-
 }

@@ -1,7 +1,6 @@
 package httpsrv
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -92,11 +91,6 @@ func (s *Server) setup() *gin.Engine {
 	ec2 := r.Group(v1api.V20090404URI)
 	{
 		v1Rtr.Ec2Routes(ec2)
-	}
-
-	fmt.Println("route info:")
-	for _, route := range r.Routes() {
-		fmt.Printf("%v+\n", route)
 	}
 
 	r.NoRoute(func(c *gin.Context) {
