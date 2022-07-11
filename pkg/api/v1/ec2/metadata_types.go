@@ -133,9 +133,9 @@ func (network *Network) ItemNames() []string {
 func (network *Network) TopLevelItemNames() []string {
 	if network != nil {
 		return network.ItemNames()
-	} else {
-		return []string{}
 	}
+
+	return []string{}
 }
 
 // GetItem returns the value for an operating network-related item
@@ -319,9 +319,9 @@ func (spot *Spot) ItemNames() []string {
 func (spot *Spot) TopLevelItemNames() []string {
 	if spot != nil {
 		return []string{"spot"}
-	} else {
-		return []string{}
 	}
+
+	return []string{}
 }
 
 // GetItem returns the value for a spot-related item.
