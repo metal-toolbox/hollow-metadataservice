@@ -2,6 +2,7 @@ package httpsrv
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -10,6 +11,9 @@ import (
 	"github.com/jmoiron/sqlx"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.hollow.sh/toolbox/ginjwt"
+	"go.hollow.sh/toolbox/version"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	v1api "go.hollow.sh/metadataservice/pkg/api/v1"
@@ -69,6 +73,19 @@ func (s *Server) setup() *gin.Engine {
 		),
 	))
 	r.Use(ginzap.RecoveryWithZap(s.Logger.With(zap.String("component", "httpsrv")), true))
+
+	tp := otel.GetTracerProvider()
+	if tp != nil {
+		hostname, err := os.Hostname()
+		if err != nil {
+			hostname = "unknown"
+		}
+
+		r.Use(otelgin.Middleware(hostname, otelgin.WithTracerProvider(tp)))
+	}
+
+	// Version endpoint returns build information
+	r.GET("/version", s.version)
 
 	// Health endpoints
 	r.GET("/healthz", s.livenessCheck)
@@ -141,4 +158,9 @@ func (s *Server) readinessCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "UP",
 	})
+}
+
+// version returns the metadataservice build information
+func (s *Server) version(c *gin.Context) {
+	c.JSON(http.StatusOK, version.String())
 }
