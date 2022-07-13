@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.dev
 
-metadataservice-migrate:
-  build:
-    context: .
-    dockerfile: Dockerfile.dev
+  metadataservice-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev

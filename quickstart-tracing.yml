@@ -1,0 +1,18 @@
+version: '3.7'
+
+services:
+  metadataservice:
+    depends_on:
+      - jaeger
+    environment:
+      - METADATASERVICE_TRACING_ENABLED=true
+      - METADATASERVICE_TRACING_PROVIDER=jaeger
+      - METADATASERVICE_TRACING_ENDPOINT=http://jaeger:14268/api/traces
+      - METADATASERVICE_TRACING_ENVIRONMENT=dev-dockercompose
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.19.2
+    ports:
+      - "16686:16686" # The UI port
+    networks:
+      - metadataservice

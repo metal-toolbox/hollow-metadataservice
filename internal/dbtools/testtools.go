@@ -11,6 +11,7 @@ import (
 	// import the crdbpgx package for automatic retries of errors for crdb that support retry
 	_ "github.com/cockroachdb/cockroach-go/v2/crdb/crdbpgx"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq" // Register the Postgres driver.
 	"github.com/stretchr/testify/require"
 
 	"go.hollow.sh/metadataservice/internal/models"
