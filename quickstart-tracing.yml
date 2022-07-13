@@ -15,4 +15,4 @@ services:
     ports:
       - "16686:16686" # The UI port
     networks:
-      - hollow
+      - metadataservice
