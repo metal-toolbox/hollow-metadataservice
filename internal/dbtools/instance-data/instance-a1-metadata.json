@@ -1,7 +1,7 @@
 {
-  "id": "37066580-de45-44ea-8cbb-eff3e932e3b1",
-  "hostname": "instance-b",
-  "iqn": "iqn.2022-02.net.packet:device.37066580",
+  "id": "d85c5807-cb8c-4cb0-b7fa-7985dff2907d",
+  "hostname": "instance-a1",
+  "iqn": "iqn.2022-02.net.packet:device.d85c5807",
   "operating_system": {
     "slug": "ubuntu_20_04",
     "distro": "ubuntu",
@@ -138,36 +138,17 @@
     ],
     "addresses": [
       {
-        "id": "5133d54c-3fae-41f4-98c8-d6362b93fba7",
-        "address_family": 4,
-        "netmask": "255.255.255.254",
-        "created_at": "2022-06-10T16:39:17Z",
-        "public": true,
-        "cidr": 31,
-        "management": true,
-        "enabled": true,
-        "network": "145.40.77.20",
-        "address": "145.40.77.21",
-        "gateway": "145.40.77.20",
-        "parent_block": {
-          "network": "145.40.77.20",
-          "netmask": "255.255.255.254",
-          "cidr": 31,
-          "href": "/ips/59d15875-3d9d-4c0f-aa4a-83ede62e8b38"
-        }
-      },
-      {
-        "id": "1c2dd171-e62d-4fd7-84fb-68f68897cef6",
+        "id": "9720049b-4da8-4646-a2bf-e8101f95f51a",
         "address_family": 6,
         "netmask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
-        "created_at": "2022-06-10T16:39:17Z",
+        "created_at": "2022-02-25T18:55:11Z",
         "public": true,
         "cidr": 127,
         "management": true,
         "enabled": true,
-        "network": "2604:1380:4641:1f00::",
-        "address": "2604:1380:4641:1f00::1",
-        "gateway": "2604:1380:4641:1f00::",
+        "network": "2604:1380:4641:1f00::16",
+        "address": "2604:1380:4641:1f00::17",
+        "gateway": "2604:1380:4641:1f00::16",
         "parent_block": {
           "network": "2604:1380:4641:1f00:0000:0000:0000:0000",
           "netmask": "ffff:ffff:ffff:ff00:0000:0000:0000:0000",
@@ -176,19 +157,19 @@
         }
       },
       {
-        "id": "a3fb3745-2801-4615-afc6-490f78099e5f",
+        "id": "971cce2a-53a3-4d9e-b3e6-7068dd34b2ac",
         "address_family": 4,
-        "netmask": "255.255.255.248",
-        "created_at": "2022-06-10T16:39:17Z",
+        "netmask": "255.255.255.254",
+        "created_at": "2022-02-25T18:55:11Z",
         "public": false,
-        "cidr": 29,
+        "cidr": 31,
         "management": true,
         "enabled": true,
-        "network": "10.1.2.8",
-        "address": "10.1.2.10",
-        "gateway": "10.1.2.9",
+        "network": "10.70.17.12",
+        "address": "10.70.17.13",
+        "gateway": "10.70.17.12",
         "parent_block": {
-          "network": "10.1.2.0",
+          "network": "10.70.17.0",
           "netmask": "255.255.255.128",
           "cidr": 25,
           "href": "/ips/16e43eb1-7e1f-40ba-af6e-2c1041f1c4b5"

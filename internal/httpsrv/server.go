@@ -105,6 +105,11 @@ func (s *Server) setup() *gin.Engine {
 		v1Rtr.Routes(v1)
 	}
 
+	ec2 := r.Group(v1api.V20090404URI)
+	{
+		v1Rtr.Ec2Routes(ec2)
+	}
+
 	r.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "invalid request - route not found"})
 	})
