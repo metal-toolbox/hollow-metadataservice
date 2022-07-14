@@ -391,3 +391,98 @@ func TestSetMetadataUpsertMetadata(t *testing.T) {
 	instanceMetadata, _ := models.InstanceMetadata(models.InstanceMetadatumWhere.ID.EQ(dbtools.FixtureInstanceA.InstanceID)).One(context.TODO(), testDB)
 	assert.Equal(t, requestBody.Metadata, instanceMetadata.Metadata.String())
 }
+
+func TestGetMetadataInternal(t *testing.T) {
+	router := *testHTTPServer(t)
+
+	type testCase struct {
+		testName       string
+		instanceID     string
+		expectedStatus int
+		expectedBody   string
+	}
+
+	testCases := []testCase{
+		{
+			"unknown ID",
+			"99c53a90-61c8-472d-95dc-9abeaeb646c9",
+			http.StatusNotFound,
+			"",
+		},
+		{
+			"blank ID",
+			"",
+			http.StatusNotFound,
+			"",
+		},
+		{
+			"Instance A",
+			dbtools.FixtureInstanceA.InstanceID,
+			http.StatusOK,
+			dbtools.FixtureInstanceA.InstanceMetadata.Metadata.String(),
+		},
+		{
+			"Instance B",
+			dbtools.FixtureInstanceB.InstanceID,
+			http.StatusOK,
+			dbtools.FixtureInstanceB.InstanceMetadata.Metadata.String(),
+		},
+		{
+			"Instance C",
+			dbtools.FixtureInstanceC.InstanceID,
+			http.StatusOK,
+			dbtools.FixtureInstanceC.InstanceMetadata.Metadata.String(),
+		},
+		{
+			"Instance D",
+			dbtools.FixtureInstanceD.InstanceID,
+			http.StatusOK,
+			dbtools.FixtureInstanceD.InstanceMetadata.Metadata.String(),
+		},
+		// Instance E does not have metadata, so we'd expect a 404
+		{
+			"Instance E",
+			dbtools.FixtureInstanceE.InstanceID,
+			http.StatusNotFound,
+			"",
+		},
+		// Instance F does not have metadata, so we'd expect a 404
+		{
+			"Instance F",
+			dbtools.FixtureInstanceF.InstanceID,
+			http.StatusNotFound,
+			"",
+		},
+	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetInternalMetadataByIDPath(testcase.instanceID), nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+
+			if testcase.expectedStatus == http.StatusOK {
+				var (
+					err         error
+					expectedMap map[string]interface{}
+					resultMap   map[string]interface{}
+				)
+
+				err = json.Unmarshal([]byte(testcase.expectedBody), &expectedMap)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				err = json.Unmarshal(w.Body.Bytes(), &resultMap)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				assert.Equal(t, expectedMap, resultMap)
+			}
+		})
+	}
+}

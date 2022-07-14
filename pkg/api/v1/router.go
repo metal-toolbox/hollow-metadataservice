@@ -36,6 +36,14 @@ const (
 	// used for updating & retrieving metadata for any instance
 	InternalUserdataURI = "/device-userdata"
 
+	// InternalMetadataWithIDURI is the path to the internal (authenticated)
+	// endpoint used for retrieving the stored metadata for an instance
+	InternalMetadataWithIDURI = "/device-metadata/:instance-id"
+
+	// InternalUserdataWithIDURI is the path to the internal (authenticated)
+	// endpoint used for retrieving the stored metadata for an instance
+	InternalUserdataWithIDURI = "/device-userdata/:instance-id"
+
 	scopePrefix = "metadata"
 )
 
@@ -60,6 +68,9 @@ func (r *Router) Routes(rg *gin.RouterGroup) {
 	authMw := r.AuthMW
 	rg.POST(InternalMetadataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("metadata")), r.instanceMetadataSet)
 	rg.POST(InternalUserdataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("userdata")), r.instanceUserdataSet)
+
+	rg.GET(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("metadata")), r.instanceMetadataGetInternal)
+	rg.GET(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("metadata")), r.instanceUserdataGetInternal)
 }
 
 // GetMetadataPath returns the path used by an instance to fetch Metadata
@@ -72,16 +83,30 @@ func GetUserdataPath() string {
 	return path.Join(V1URI, UserdataURI)
 }
 
-// GetInternalMetadataPath returns the patch used by an internal, authenticated
+// GetInternalMetadataPath returns the path used by an internal, authenticated
 // system or used to update or retrieve metadata.
 func GetInternalMetadataPath() string {
 	return path.Join(V1URI, InternalMetadataURI)
+}
+
+// GetInternalMetadataByIDPath returns the path used by an internal,
+// authenticated system or user to retrieve the metadata for a specific
+// instance.
+func GetInternalMetadataByIDPath(id string) string {
+	return path.Join(V1URI, InternalMetadataURI, id)
 }
 
 // GetInternalUserdataPath returns the patch used by an internal, authenticated
 // system or used to update or retrieve userdata.
 func GetInternalUserdataPath() string {
 	return path.Join(V1URI, InternalUserdataURI)
+}
+
+// GetInternalUserdataByIDPath returns the path used by an internal,
+// authenticated system or user to retrieve the metadata for a specific
+// instance.
+func GetInternalUserdataByIDPath(id string) string {
+	return path.Join(V1URI, InternalUserdataURI, id)
 }
 
 func upsertScopes(items ...string) []string {
@@ -92,6 +117,15 @@ func upsertScopes(items ...string) []string {
 
 	for _, i := range items {
 		s = append(s, fmt.Sprintf("%s:update:%s", scopePrefix, i))
+	}
+
+	return s
+}
+
+func readScopes(items ...string) []string {
+	s := []string{"read"}
+	for _, i := range items {
+		s = append(s, fmt.Sprintf("%s:read:%s", scopePrefix, i))
 	}
 
 	return s
