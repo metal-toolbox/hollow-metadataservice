@@ -1,6 +1,8 @@
 package metadataservice
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -382,6 +384,159 @@ func handleUpsertRequest(c *gin.Context, r *Router, params upsertDataRequest, up
 	// Step 8
 	// Commit our transaction
 	// if err := c.BindJSON(&params); err != nil {
+	if err := tx.Commit(); err != nil {
+		txErr = true
+
+		dbErrorResponse(c, err)
+
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+func (r *Router) instanceMetadataDelete(c *gin.Context) {
+	// When deleting metadata for an instance, we need to check if there is
+	// userdata stored for the instance. If there is not, we should go ahead and
+	// also delete the associated instance_ip_addresses rows.
+	instanceID, ok := c.Params.Get("instance-id")
+
+	if !ok || instanceID == "" {
+		notFoundResponse(c)
+		return
+	}
+
+	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil {
+		dbErrorResponse(c, err)
+		return
+	}
+
+	handleDeleteRequest(c, r, instanceID, metadata, nil)
+}
+
+func (r *Router) instanceUserdataDelete(c *gin.Context) {
+	// When deleting userdata for an instance, we need to check if there is
+	// metadata stored for the instance. If there is not, we should go ahead and
+	// also delete the associated instance_ip_addresses rows.
+	instanceID, ok := c.Params.Get("instance-id")
+
+	if !ok || instanceID == "" {
+		notFoundResponse(c)
+		return
+	}
+
+	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil {
+		dbErrorResponse(c, err)
+		return
+	}
+
+	handleDeleteRequest(c, r, instanceID, nil, userdata)
+}
+
+func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata *models.InstanceMetadatum, userdata *models.InstanceUserdatum) {
+	var err error
+
+	deleteMetadata := metadata != nil
+	deleteUserdata := userdata != nil
+
+	deleteInstanceIPs := false
+
+	// Step 1
+	// Attempt to load instance metadata or instance userdata, depending on if
+	// they were passed in as nil
+	if metadata == nil {
+		metadata, err = models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+		// An ErrNoRows error is expected, so disregard it.
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			dbErrorResponse(c, err)
+			return
+		}
+	}
+
+	if userdata == nil {
+		userdata, err = models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
+		// An ErrNoRows error is expected, so disregard it.
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			dbErrorResponse(c, err)
+			return
+		}
+	}
+
+	switch {
+	case deleteMetadata && deleteUserdata:
+		deleteInstanceIPs = true
+	case deleteMetadata:
+		deleteInstanceIPs = (userdata == nil)
+	case deleteUserdata:
+		deleteInstanceIPs = (metadata == nil)
+	}
+
+	// Step 2
+	// Now that we've determined if we should delete the corresponding
+	// instance_ip_addresses rows, start a transaction, delete the passed-in
+	// record, and potentially delete the associated instance_ip_addresses rows.
+	txErr := false
+
+	tx, err := r.DB.BeginTx(c, nil)
+	if err != nil {
+		dbErrorResponse(c, err)
+		return
+	}
+
+	// If there's an error, we'll want to rollback the transaction.
+	defer func() {
+		if txErr {
+			err := tx.Rollback()
+			if err != nil {
+				r.Logger.Sugar().Error("Could not rollback transaction", "error", err)
+			}
+		}
+	}()
+
+	// Step 3
+	// Delete the metadata and/or userdata record, depending on which one was passed in.
+	if deleteMetadata {
+		_, err := metadata.Delete(c, tx)
+		if err != nil {
+			txErr = true
+
+			dbErrorResponse(c, err)
+
+			return
+		}
+	}
+
+	if deleteUserdata {
+		_, err := userdata.Delete(c, tx)
+		if err != nil {
+			txErr = true
+
+			dbErrorResponse(c, err)
+
+			return
+		}
+	}
+
+	// Step 4
+	// Delete the instance_ip_addresses rows if we've deleted the last metadata
+	// or userdata record associated to the instance ID.
+	if deleteInstanceIPs {
+		_, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(instanceID)).DeleteAll(c, tx)
+		if err != nil {
+			txErr = true
+
+			dbErrorResponse(c, err)
+
+			return
+		}
+	}
+
+	// Step 5
+	// commit our transaction
 	if err := tx.Commit(); err != nil {
 		txErr = true
 

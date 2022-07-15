@@ -470,3 +470,102 @@ func TestGetUserdataInternal(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteUserdata(t *testing.T) {
+	router := *testHTTPServer(t)
+	testDB := dbtools.TestDB()
+
+	type testCase struct {
+		testName       string
+		instanceID     string
+		expectedStatus int
+		// anyIPs is used to test to see if there are any instance_ip_addresses
+		// rows remaining after the call
+		anyIPs bool
+	}
+
+	testCases := []testCase{
+		{
+			"unknown ID",
+			"99c53a90-61c8-472d-95dc-9abeaeb646c9",
+			http.StatusNotFound,
+			false,
+		},
+		{
+			"blank ID",
+			"",
+			http.StatusNotFound,
+			false,
+		},
+		// Instance A has both metadata and userdata, so instance_ip_addresses
+		// should remain
+		{
+			"Instance A",
+			dbtools.FixtureInstanceA.InstanceID,
+			http.StatusOK,
+			true,
+		},
+		// Instance B has metadata but no userdata, so expect a 404
+		{
+			"Instance B",
+			dbtools.FixtureInstanceB.InstanceID,
+			http.StatusNotFound,
+			true,
+		},
+		// Instance C has metadata and userdata, but no associated IPs, so there
+		// should not be any instance_ip_addresses rows found.
+		{
+			"Instance C",
+			dbtools.FixtureInstanceC.InstanceID,
+			http.StatusOK,
+			false,
+		},
+		// Instance D has metadata and no userdata, and no associated IPs, so
+		// expect a 404
+		{
+			"Instance D",
+			dbtools.FixtureInstanceD.InstanceID,
+			http.StatusNotFound,
+			false,
+		},
+		// Instance E does not have metadata, but has userdata and IPs, so expect
+		// the userdata and IPs to be removed
+		{
+			"Instance E",
+			dbtools.FixtureInstanceE.InstanceID,
+			http.StatusOK,
+			false,
+		},
+		// Instance F does not have metadata, has userdata, but no IPs
+		{
+			"Instance F",
+			dbtools.FixtureInstanceF.InstanceID,
+			http.StatusOK,
+			false,
+		},
+	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodDelete, v1api.GetInternalUserdataByIDPath(testcase.instanceID), nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+
+			if testcase.expectedStatus == http.StatusOK {
+				count, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(testcase.instanceID)).Count(context.TODO(), testDB)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if testcase.anyIPs {
+					assert.Greater(t, count, int64(0))
+				} else {
+					assert.Equal(t, int64(0), count)
+				}
+			}
+		})
+	}
+}
