@@ -89,6 +89,33 @@ func (r *Router) instanceMetadataGet(c *gin.Context) {
 	c.JSON(http.StatusOK, metadata.Metadata)
 }
 
+// instanceMetadataGetInternal retrieves the requested instance ID from the
+// path and looks to see if the database has metadata recorded for that ID.
+// If so, it returns a copy of the stored metadata. If not, it will just return
+// a 404. This can be used by an authenticated external system to determine
+// which instances the metadata service already knows about, and which
+// instances may still need their metadata pushed to the service.
+func (r *Router) instanceMetadataGetInternal(c *gin.Context) {
+	instanceID, ok := c.Params.Get("instance-id")
+
+	if !ok || instanceID == "" {
+		notFoundResponse(c)
+		return
+	}
+
+	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil {
+		// Here, we don't want to try to look up the metadata from an external
+		// system, as this endpoint should only return data for instances it
+		// already knows about
+		dbErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, metadata.Metadata)
+}
+
 func (r *Router) instanceUserdataGet(c *gin.Context) {
 	instanceID := c.GetString(middleware.ContextKeyInstanceID)
 	if instanceID == "" {
@@ -101,6 +128,33 @@ func (r *Router) instanceUserdataGet(c *gin.Context) {
 	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
+		dbErrorResponse(c, err)
+		return
+	}
+
+	c.String(http.StatusOK, string(userdata.Userdata.Bytes))
+}
+
+// instanceUserdataGetInternal retrieves the requested instance ID from the
+// path and looks to see if the database has userdata recorded for that ID.
+// If so, it returns a copy of the stored userdata. If not, it will just return
+// a 404. This can be used by an authenticated external system to determine
+// which instances the userdata service already knows about, and which
+// instances may still need their userdata pushed to the service.
+func (r *Router) instanceUserdataGetInternal(c *gin.Context) {
+	instanceID, ok := c.Params.Get("instance-id")
+
+	if !ok || instanceID == "" {
+		notFoundResponse(c)
+		return
+	}
+
+	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil {
+		// Here, we don't want to try to look up the userdata from an external
+		// system, as this endpoint should only return data for instances it
+		// already knows about
 		dbErrorResponse(c, err)
 		return
 	}

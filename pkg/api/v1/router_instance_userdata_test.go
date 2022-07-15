@@ -390,3 +390,83 @@ func TestSetUserdataUpsertUserdata(t *testing.T) {
 	instanceUserdata, _ := models.InstanceUserdata(models.InstanceUserdatumWhere.ID.EQ(dbtools.FixtureInstanceA.InstanceID)).One(context.TODO(), testDB)
 	assert.Equal(t, requestBody.Userdata, instanceUserdata.Userdata.Bytes)
 }
+
+func TestGetUserdataInternal(t *testing.T) {
+	router := *testHTTPServer(t)
+
+	type testCase struct {
+		testName       string
+		instanceID     string
+		expectedStatus int
+		expectedBody   string
+	}
+
+	testCases := []testCase{
+		{
+			"unknown ID",
+			"99c53a90-61c8-472d-95dc-9abeaeb646c9",
+			http.StatusNotFound,
+			"",
+		},
+		{
+			"blank ID",
+			"",
+			http.StatusNotFound,
+			"",
+		},
+		{
+			"Instance A",
+			dbtools.FixtureInstanceA.InstanceID,
+			http.StatusOK,
+			string(dbtools.FixtureInstanceA.InstanceUserdata.Userdata.Bytes),
+		},
+		// Instance B does not have userdata, so we'd expect a 404
+		{
+			"Instance B",
+			dbtools.FixtureInstanceB.InstanceID,
+			http.StatusNotFound,
+			"",
+		},
+		{
+			"Instance C",
+			dbtools.FixtureInstanceC.InstanceID,
+			http.StatusOK,
+			string(dbtools.FixtureInstanceC.InstanceUserdata.Userdata.Bytes),
+		},
+		// Instance D does not have userdata, so we'd expect a 404
+		{
+			"Instance D",
+			dbtools.FixtureInstanceD.InstanceID,
+			http.StatusNotFound,
+			"",
+		},
+		{
+			"Instance E",
+			dbtools.FixtureInstanceE.InstanceID,
+			http.StatusOK,
+			string(dbtools.FixtureInstanceE.InstanceUserdata.Userdata.Bytes),
+		},
+		// Instance F does not have metadata, so we'd expect a 404
+		{
+			"Instance F",
+			dbtools.FixtureInstanceF.InstanceID,
+			http.StatusOK,
+			string(dbtools.FixtureInstanceF.InstanceUserdata.Userdata.Bytes),
+		},
+	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetInternalUserdataByIDPath(testcase.instanceID), nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+
+			if testcase.expectedStatus == http.StatusOK {
+				assert.Equal(t, testcase.expectedBody, w.Body.String())
+			}
+		})
+	}
+}
