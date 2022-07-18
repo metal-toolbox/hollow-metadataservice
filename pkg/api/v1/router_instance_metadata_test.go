@@ -392,6 +392,105 @@ func TestSetMetadataUpsertMetadata(t *testing.T) {
 	assert.Equal(t, requestBody.Metadata, instanceMetadata.Metadata.String())
 }
 
+func TestDeleteMetadata(t *testing.T) {
+	router := *testHTTPServer(t)
+	testDB := dbtools.TestDB()
+
+	type testCase struct {
+		testName       string
+		instanceID     string
+		expectedStatus int
+		// anyIPs is used to test to see if there are any instance_ip_addresses
+		// rows remaining after the call
+		anyIPs bool
+	}
+
+	testCases := []testCase{
+		{
+			"unknown ID",
+			"99c53a90-61c8-472d-95dc-9abeaeb646c9",
+			http.StatusNotFound,
+			false,
+		},
+		{
+			"blank ID",
+			"",
+			http.StatusNotFound,
+			false,
+		},
+		// Instance A has both metadata and userdata, so instance_ip_addresses
+		// should remain
+		{
+			"Instance A",
+			dbtools.FixtureInstanceA.InstanceID,
+			http.StatusOK,
+			true,
+		},
+		// Instance B has metadata but no userdata, so instance_ip_addresses
+		// should be deleted
+		{
+			"Instance B",
+			dbtools.FixtureInstanceB.InstanceID,
+			http.StatusOK,
+			false,
+		},
+		// Instance C has metadata and userdata, but no associated IPs, so there
+		// should not be any instance_ip_addresses rows found.
+		{
+			"Instance C",
+			dbtools.FixtureInstanceC.InstanceID,
+			http.StatusOK,
+			false,
+		},
+		// Instance D has metadata and no userdata, and no associated IPs, so there
+		// should not be any instance_ip_addresses rows found.
+		{
+			"Instance D",
+			dbtools.FixtureInstanceD.InstanceID,
+			http.StatusOK,
+			false,
+		},
+		// Instance E does not have metadata, so we'd expect a 404
+		{
+			"Instance E",
+			dbtools.FixtureInstanceE.InstanceID,
+			http.StatusNotFound,
+			true,
+		},
+		// Instance F does not have metadata, so we'd expect a 404
+		{
+			"Instance F",
+			dbtools.FixtureInstanceF.InstanceID,
+			http.StatusNotFound,
+			false,
+		},
+	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodDelete, v1api.GetInternalMetadataByIDPath(testcase.instanceID), nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+
+			if testcase.expectedStatus == http.StatusOK {
+				count, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(testcase.instanceID)).Count(context.TODO(), testDB)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if testcase.anyIPs {
+					assert.Greater(t, count, int64(0))
+				} else {
+					assert.Equal(t, int64(0), count)
+				}
+			}
+		})
+	}
+}
+
 func TestGetMetadataInternal(t *testing.T) {
 	router := *testHTTPServer(t)
 

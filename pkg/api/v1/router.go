@@ -71,6 +71,8 @@ func (r *Router) Routes(rg *gin.RouterGroup) {
 
 	rg.GET(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("metadata")), r.instanceMetadataGetInternal)
 	rg.GET(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("metadata")), r.instanceUserdataGetInternal)
+	rg.DELETE(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(deleteScopes("metadata")), r.instanceMetadataDelete)
+	rg.DELETE(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(deleteScopes("metadata")), r.instanceUserdataDelete)
 }
 
 // GetMetadataPath returns the path used by an instance to fetch Metadata
@@ -126,6 +128,15 @@ func readScopes(items ...string) []string {
 	s := []string{"read"}
 	for _, i := range items {
 		s = append(s, fmt.Sprintf("%s:read:%s", scopePrefix, i))
+	}
+
+	return s
+}
+
+func deleteScopes(items ...string) []string {
+	s := []string{"write", "delete"}
+	for _, i := range items {
+		s = append(s, fmt.Sprintf("%s:delete:%s", scopePrefix, i))
 	}
 
 	return s
