@@ -70,9 +70,9 @@ func (r *Router) Routes(rg *gin.RouterGroup) {
 	rg.POST(InternalUserdataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("userdata")), r.instanceUserdataSet)
 
 	rg.GET(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("metadata")), r.instanceMetadataGetInternal)
-	rg.GET(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("metadata")), r.instanceUserdataGetInternal)
+	rg.GET(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("userdata")), r.instanceUserdataGetInternal)
 	rg.DELETE(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(deleteScopes("metadata")), r.instanceMetadataDelete)
-	rg.DELETE(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(deleteScopes("metadata")), r.instanceUserdataDelete)
+	rg.DELETE(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(deleteScopes("userdata")), r.instanceUserdataDelete)
 }
 
 // GetMetadataPath returns the path used by an instance to fetch Metadata
