@@ -72,6 +72,10 @@ func init() {
 
 	serveCmd.Flags().String("oidc-username-claim", "", "additional fields to output in logs from the JWT token, ex (email)")
 	viperBindFlag("oidc.claims.username", serveCmd.Flags().Lookup("oidc-username-claim"))
+
+	// Misc serve flags
+	serveCmd.Flags().StringSlice("gin-trusted-proxies", []string{}, "Comma-separated list of IP addresses, like `\"192.168.1.1,10.0.0.1\"`. When running the Metadata Service behind something like a reverse proxy or load balancer, you may need to set this so that gin's `(*Context).ClientIP()` method returns a value provided by the proxy in a header like `X-Forwarded-For`.")
+	viperBindFlag("gin.trustedproxies", serveCmd.Flags().Lookup("gin-trusted-proxies"))
 }
 
 func serve() {
@@ -93,6 +97,7 @@ func serve() {
 			RolesClaim:    viper.GetString("oidc.claims.roles"),
 			UsernameClaim: viper.GetString("oidc.claims.username"),
 		},
+		TrustedProxies: viper.GetStringSlice("gin.trustedproxies"),
 	}
 
 	if err := hs.Run(); err != nil {

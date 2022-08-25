@@ -21,11 +21,12 @@ import (
 
 // Server contains the HTTP server configuration
 type Server struct {
-	Logger     *zap.Logger
-	Listen     string
-	Debug      bool
-	DB         *sqlx.DB
-	AuthConfig ginjwt.AuthConfig
+	Logger         *zap.Logger
+	Listen         string
+	Debug          bool
+	DB             *sqlx.DB
+	AuthConfig     ginjwt.AuthConfig
+	TrustedProxies []string
 }
 
 var (
@@ -47,6 +48,14 @@ func (s *Server) setup() *gin.Engine {
 
 	// Setup default gin router
 	r := gin.New()
+
+	// Set the trusted proxies, if they were specified by config
+	if len(s.TrustedProxies) > 0 {
+		err = r.SetTrustedProxies(s.TrustedProxies)
+		if err != nil {
+			s.Logger.Sugar().Fatal("failed to set gin trusted proxies", "error", err)
+		}
+	}
 
 	r.Use(cors.New(cors.Config{
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
