@@ -1,14 +1,18 @@
 package cmd
 
 import (
+	"context"
+	"net/url"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/oauth2/clientcredentials"
 
 	"go.hollow.sh/toolbox/ginjwt"
 
 	"go.hollow.sh/metadataservice/internal/httpsrv"
+	"go.hollow.sh/metadataservice/internal/lookup"
 )
 
 const (
@@ -22,7 +26,7 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "starts the metadata server",
 	Run: func(cmd *cobra.Command, args []string) {
-		serve()
+		serve(cmd.Context())
 	},
 }
 
@@ -72,12 +76,39 @@ func init() {
 
 	serveCmd.Flags().String("oidc-username-claim", "", "additional fields to output in logs from the JWT token, ex (email)")
 	viperBindFlag("oidc.claims.username", serveCmd.Flags().Lookup("oidc-username-claim"))
+
+	// Lookup Service Flags
+	serveCmd.Flags().Bool("lookup-enabled", false, "Use the lookup client to attempt to fetch metadata or userdata from an upstream source when it is not cached locall for the instance")
+	viperBindFlag("lookup.enabled", serveCmd.Flags().Lookup("lookup-enabled"))
+
+	serveCmd.Flags().String("lookup-base-url", "", "A base url (like 'https://metadata-lookup-service.tld/api/v1/') to use when fetching metadata or userdata from an upstream source")
+	viperBindFlag("lookup.baseurl", serveCmd.Flags().Lookup("lookup-base-url"))
+
+	serveCmd.Flags().String("lookup-oidc-issuer", "", "OIDC JWT issuer to the lookup service")
+	viperBindFlag("lookup.oidc.issuer", serveCmd.Flags().Lookup("lookup-oidc-issuer"))
+
+	serveCmd.Flags().String("lookup-oidc-client-id", "", "OIDC Client ID to use by the lookup service client for auth token exchange")
+	viperBindFlag("lookup.oidc.clientid", serveCmd.Flags().Lookup("lookup-oidc-client-id"))
+
+	serveCmd.Flags().String("lookup-oidc-client-secret", "", "OIDC Client Secret to use by the lookup service client for auth token exchange")
+	viperBindFlag("lookup.oidc.clientsecret", serveCmd.Flags().Lookup("lookup-oidc-client-secret"))
+
+	serveCmd.Flags().String("lookup-oidc-aud", "", "OIDC JWT audience for lookup service")
+	viperBindFlag("lookup.oidc.audience", serveCmd.Flags().Lookup("lookup-oidc-aud"))
+
+	serveCmd.Flags().StringSlice("lookup-oidc-scopes", []string{"metadata:read:metadata", "metadata:read:userdata"}, "OIDC JWT scopes for lookup service")
+	viperBindFlag("lookup.oidc.scopes", serveCmd.Flags().Lookup("lookup-oidc-scopes"))
 }
 
-func serve() {
+func serve(ctx context.Context) {
 	db := initTracingAndDB()
 
 	logger.Infow("starting metadata server", "address", viper.GetString("listen"))
+
+	lookupClient, err := getLookupClient(ctx)
+	if err != nil {
+		logger.Fatalw("error getting lookup service client", "error", err)
+	}
 
 	hs := &httpsrv.Server{
 		Logger: logger.Desugar(),
@@ -93,9 +124,27 @@ func serve() {
 			RolesClaim:    viper.GetString("oidc.claims.roles"),
 			UsernameClaim: viper.GetString("oidc.claims.username"),
 		},
+		LookupEnabled: viper.GetBool("lookup.enabled"),
+		LookupClient:  lookupClient,
 	}
 
 	if err := hs.Run(); err != nil {
 		logger.Fatalw("failed starting metadata server", "error", err)
 	}
+}
+
+func getLookupClient(ctx context.Context) (*lookup.ServiceClient, error) {
+	if viper.GetBool("lookup.enabled") {
+		oauthConfig := clientcredentials.Config{
+			ClientID:       viper.GetString("lookup.oidc.clientid"),
+			ClientSecret:   viper.GetString("lookup.oidc.clientsecret"),
+			TokenURL:       viper.GetString("lookup.oidc.issuer"),
+			Scopes:         viper.GetStringSlice("lookup.oidc.scopes"),
+			EndpointParams: url.Values{"audience": []string{viper.GetString("lookup.oidc.audience")}},
+		}
+
+		return lookup.NewClient(logger.Desugar(), viper.GetString("lookup.basepath"), oauthConfig.Client(ctx))
+	}
+
+	return nil, nil
 }

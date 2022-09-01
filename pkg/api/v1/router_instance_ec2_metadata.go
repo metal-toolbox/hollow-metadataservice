@@ -2,13 +2,12 @@ package metadataservice
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
-	"go.hollow.sh/metadataservice/internal/middleware"
-	"go.hollow.sh/metadataservice/internal/models"
 	"go.hollow.sh/metadataservice/pkg/api/v1/ec2"
 )
 
@@ -40,18 +39,15 @@ import (
 // instanceEc2MetadataGet returns the list of top-level metadata item names
 // which can be subsequently queried by the caller.
 func (r *Router) instanceEc2MetadataGet(c *gin.Context) {
-	instanceID := c.GetString(middleware.ContextKeyInstanceID)
-	if instanceID == "" {
-		// TODO: Try to fetch the metadata from an external source of truth.
-		// Return 404 for now...
-		notFoundResponse(c)
-		return
-	}
-
-	instanceMetadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+	instanceMetadata, err := r.getMetadata(c)
 
 	if err != nil {
-		dbErrorResponse(c, err)
+		if errors.Is(err, errNotFound) {
+			notFoundResponse(c)
+		} else {
+			dbErrorResponse(c, err)
+		}
+
 		return
 	}
 
@@ -68,15 +64,17 @@ func (r *Router) instanceEc2MetadataGet(c *gin.Context) {
 }
 
 func (r *Router) instanceEc2MetadataItemGet(c *gin.Context) {
-	instanceID := c.GetString(middleware.ContextKeyInstanceID)
-	if instanceID == "" {
-		// TODO: Try to fetch the metadata from an external source of truth.
-		// Return 404 for now...
-		notFoundResponse(c)
+	instanceMetadata, err := r.getMetadata(c)
+
+	if err != nil {
+		if errors.Is(err, errNotFound) {
+			notFoundResponse(c)
+		} else {
+			dbErrorResponse(c, err)
+		}
+
 		return
 	}
-
-	instanceMetadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
 		dbErrorResponse(c, err)
@@ -106,18 +104,14 @@ func (r *Router) instanceEc2MetadataItemGet(c *gin.Context) {
 }
 
 func (r *Router) instanceEc2UserdataGet(c *gin.Context) {
-	instanceID := c.GetString(middleware.ContextKeyInstanceID)
-	if instanceID == "" {
-		// TODO: Try to fetch the userdata from an external source of truth.
-		// Return 404 for now...
-		notFoundResponse(c)
-		return
-	}
-
-	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
-
+	userdata, err := r.getUserdata(c)
 	if err != nil {
-		dbErrorResponse(c, err)
+		if errors.Is(err, errNotFound) {
+			notFoundResponse(c)
+		} else {
+			dbErrorResponse(c, err)
+		}
+
 		return
 	}
 
