@@ -45,7 +45,6 @@ func IdentifyInstanceByIP(db *sqlx.DB) gin.HandlerFunc {
 			err               error
 		)
 
-		// TODO: Add support for configuring trusted proxies.
 		// When trusted proxies are configured in gin, ClientIP() will use the
 		// X-Forwarded-For or X-Real-Ip headers (if present) to report the remote
 		// IP. If trusted proxies are not configured, these headers will be ignored
@@ -53,6 +52,9 @@ func IdentifyInstanceByIP(db *sqlx.DB) gin.HandlerFunc {
 		// will be returned.
 		// But if a proxy is sitting in front of this service, RemoteAddr will be
 		// the IP of the proxy, and not the requestor.
+		// Use the `gin-trusted-proxies` flag
+		// (or METADATASERVICE_GIN_TRUSTED_PROXIES envvar) when starting the server
+		// to provide the list of trusted proxy IP's to use.
 		address = c.ClientIP()
 
 		instanceIPAddress, err = models.InstanceIPAddresses(qm.Where("address >>= ?::inet", address)).One(c, db)
