@@ -98,6 +98,10 @@ func init() {
 
 	serveCmd.Flags().StringSlice("lookup-oidc-scopes", []string{"metadata:read:metadata", "metadata:read:userdata"}, "OIDC JWT scopes for lookup service")
 	viperBindFlag("lookup.oidc.scopes", serveCmd.Flags().Lookup("lookup-oidc-scopes"))
+
+	// Misc serve flags
+	serveCmd.Flags().StringSlice("gin-trusted-proxies", []string{}, "Comma-separated list of IP addresses, like `\"192.168.1.1,10.0.0.1\"`. When running the Metadata Service behind something like a reverse proxy or load balancer, you may need to set this so that gin's `(*Context).ClientIP()` method returns a value provided by the proxy in a header like `X-Forwarded-For`.")
+	viperBindFlag("gin.trustedproxies", serveCmd.Flags().Lookup("gin-trusted-proxies"))
 }
 
 func serve(ctx context.Context) {
@@ -124,8 +128,9 @@ func serve(ctx context.Context) {
 			RolesClaim:    viper.GetString("oidc.claims.roles"),
 			UsernameClaim: viper.GetString("oidc.claims.username"),
 		},
-		LookupEnabled: viper.GetBool("lookup.enabled"),
-		LookupClient:  lookupClient,
+		TrustedProxies: viper.GetStringSlice("gin.trustedproxies"),
+		LookupEnabled:  viper.GetBool("lookup.enabled"),
+		LookupClient:   lookupClient,
 	}
 
 	if err := hs.Run(); err != nil {
