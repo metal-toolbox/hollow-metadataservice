@@ -98,3 +98,35 @@ func TestIdentifyInstanceByIP(t *testing.T) {
 		})
 	}
 }
+
+func TestIdentifyInstanceByIPWithTrustedProxies(t *testing.T) {
+	testdb := dbtools.DatabaseTest(t)
+
+	proxyIP := "1.2.3.4"
+
+	trustedProxies := []string{proxyIP}
+	r := gin.New()
+	err := r.SetTrustedProxies(trustedProxies)
+
+	if err != nil {
+		t.Errorf("Error setting trusted proxies: %v\n", err)
+	}
+
+	hostAIP := dbtools.FixtureInstanceA.HostIPs[0]
+
+	r.Use(middleware.IdentifyInstanceByIP(testdb))
+	r.GET("/", func(c *gin.Context) {
+		instanceIDValue, found := c.Get(middleware.ContextKeyInstanceID)
+
+		assert.True(t, found)
+		assert.Equal(t, dbtools.FixtureInstanceA.InstanceID, instanceIDValue)
+
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequestWithContext(context.TODO(), "GET", "http://test/", nil)
+	req.RemoteAddr = net.JoinHostPort(proxyIP, "0")
+	req.Header.Add("X-Forwarded-For", hostAIP)
+	r.ServeHTTP(w, req)
+}
