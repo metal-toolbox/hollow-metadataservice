@@ -1,6 +1,8 @@
 package metadataservice
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"path"
 	"reflect"
@@ -13,7 +15,9 @@ import (
 
 	"go.hollow.sh/toolbox/ginjwt"
 
+	"go.hollow.sh/metadataservice/internal/lookup"
 	"go.hollow.sh/metadataservice/internal/middleware"
+	"go.hollow.sh/metadataservice/internal/models"
 )
 
 const (
@@ -49,13 +53,20 @@ const (
 
 var (
 	validate *validator.Validate
+
+	// errNotFound wraps the two sorts of "not found" errors we might encounter
+	// - the item wasn't found in the DB
+	// - the item wasn't found in the upstream lookup service
+	errNotFound = errors.New("not found")
 )
 
 // Router provides a router for the v1 API
 type Router struct {
-	AuthMW *ginjwt.Middleware
-	DB     *sqlx.DB
-	Logger *zap.Logger
+	AuthMW        *ginjwt.Middleware
+	DB            *sqlx.DB
+	Logger        *zap.Logger
+	LookupEnabled bool
+	LookupClient  lookup.Client
 }
 
 // Routes will add the routes for this API version to a router group
@@ -73,6 +84,92 @@ func (r *Router) Routes(rg *gin.RouterGroup) {
 	rg.GET(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("userdata")), r.instanceUserdataGetInternal)
 	rg.DELETE(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(deleteScopes("metadata")), r.instanceMetadataDelete)
 	rg.DELETE(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(deleteScopes("userdata")), r.instanceUserdataDelete)
+}
+
+func (r *Router) getMetadata(c *gin.Context) (*models.InstanceMetadatum, error) {
+	instanceID := c.GetString(middleware.ContextKeyInstanceID)
+
+	if instanceID == "" {
+		// We couldn't match the request IP to an instance ID that the metadata
+		// service already knows about. So we'll try to get it from the upstream
+		// lookup service (if it's enabled and configured).
+		requestIP := c.GetString(middleware.ContextKeyRequestorIP)
+
+		if r.LookupEnabled && r.LookupClient != nil {
+			metadata, err := lookup.MetadataSyncByIP(c.Request.Context(), r.DB, r.Logger, r.LookupClient, requestIP)
+			if err != nil && errors.Is(err, lookup.ErrNotFound) {
+				return nil, errNotFound
+			}
+
+			return metadata, err
+		}
+
+		return nil, errNotFound
+	}
+
+	// We got an instance ID from the middleware, either because we could match
+	// the request IP to an ID, or the request itself provided the instance ID.
+	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		// We couldn't find an instance_metadata row for this instance ID. Try
+		// to fetch it from the upstream lookup service (if enabled and configured)
+		if r.LookupEnabled && r.LookupClient != nil {
+			metadata, err = lookup.MetadataSyncByID(c.Request.Context(), r.DB, r.Logger, r.LookupClient, instanceID)
+			if err != nil && errors.Is(err, lookup.ErrNotFound) {
+				return nil, errNotFound
+			}
+
+			return metadata, err
+		}
+
+		return nil, errNotFound
+	}
+
+	return metadata, err
+}
+
+func (r *Router) getUserdata(c *gin.Context) (*models.InstanceUserdatum, error) {
+	instanceID := c.GetString(middleware.ContextKeyInstanceID)
+
+	if instanceID == "" {
+		// We couldn't match the request IP to an instance ID that the metadata
+		// service already knows about. So we'll try to get it from the upstream
+		// lookup service (if it's enabled and configured).
+		requestIP := c.GetString(middleware.ContextKeyRequestorIP)
+
+		if r.LookupEnabled && r.LookupClient != nil {
+			userdata, err := lookup.UserdataSyncByIP(c.Request.Context(), r.DB, r.Logger, r.LookupClient, requestIP)
+			if err != nil && errors.Is(err, lookup.ErrNotFound) {
+				return nil, errNotFound
+			}
+
+			return userdata, err
+		}
+
+		return nil, errNotFound
+	}
+
+	// We got an instance ID from the middleware, either because we could match
+	// the request IP to an ID, or the request itself provided the instance ID.
+	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		// We couldn't find an instance_metadata row for this instance ID. Try
+		// to fetch it from the upstream lookup service (if enabled and configured)
+		if r.LookupEnabled && r.LookupClient != nil {
+			userdata, err = lookup.UserdataSyncByID(c.Request.Context(), r.DB, r.Logger, r.LookupClient, instanceID)
+			if err != nil && errors.Is(err, lookup.ErrNotFound) {
+				return nil, errNotFound
+			}
+
+			return userdata, err
+		}
+
+		return nil, errNotFound
+	}
+
+	return userdata, err
 }
 
 // GetMetadataPath returns the path used by an instance to fetch Metadata

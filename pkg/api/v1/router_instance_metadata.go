@@ -4,33 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/volatiletech/null/v8"
-	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/types"
 
-	"go.hollow.sh/metadataservice/internal/middleware"
 	"go.hollow.sh/metadataservice/internal/models"
+	"go.hollow.sh/metadataservice/internal/upserter"
 )
-
-// upsertDataRequest is an interface defining the common traits shared between
-// the requests for upserting metadata and userdata. Namely, an instance ID and
-// a set of (optional) IP addresses.
-type upsertDataRequest interface {
-	getID() string
-	getIPAddresses() []string
-}
-
-// upsertRecord is a function defined in by each metadata or userdata upsert
-// handler function and passed into the general handleUpsertRequest function.
-// This lets us share the common functionality shared between both, like
-// handling conflicting IPs, adding new instance_ip_address rows, and
-// removing stale instance_ip_address rows can be handled generically while
-// delegating the specific implementation for handling upserting metadata
-// or userdata records back to the calling method.
-type upsertRecord func(c *gin.Context, exec boil.ContextExecutor) error
 
 // UpsertMetadataRequest contains the fields for inserting or updating an
 // instances metadata.
@@ -73,22 +54,21 @@ func (upsertRequest UpsertUserdataRequest) getIPAddresses() []string {
 }
 
 func (r *Router) instanceMetadataGet(c *gin.Context) {
-	instanceID := c.GetString(middleware.ContextKeyInstanceID)
-	if instanceID == "" {
-		// TODO: Try to fetch the metadata from an external source of truth.
-		// Return 404 for now...
-		notFoundResponse(c)
-		return
-	}
+	metadata, err := r.getMetadata(c)
 
-	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
-
-	if err != nil {
+	// If we got an error trying to retrieve metadata for the caller, and the
+	// error wasn't a "not found" error, we should just return a generic 500
+	// error result to the caller.
+	if err != nil && !errors.Is(err, errNotFound) {
 		dbErrorResponse(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, metadata.Metadata)
+	if metadata != nil {
+		c.JSON(http.StatusOK, metadata.Metadata)
+	} else {
+		notFoundResponse(c)
+	}
 }
 
 // instanceMetadataGetInternal retrieves the requested instance ID from the
@@ -119,22 +99,21 @@ func (r *Router) instanceMetadataGetInternal(c *gin.Context) {
 }
 
 func (r *Router) instanceUserdataGet(c *gin.Context) {
-	instanceID := c.GetString(middleware.ContextKeyInstanceID)
-	if instanceID == "" {
-		// TODO: Try to fetch the userdata from an external source of truth.
-		// Return 404 for now...
-		notFoundResponse(c)
-		return
-	}
+	userdata, err := r.getUserdata(c)
 
-	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
-
-	if err != nil {
+	// If we got an error trying to retrieve userdata for the caller, and the
+	// error wasn't a "not found" error, we should just return a generic 500
+	// error result to the caller.
+	if err != nil && !errors.Is(err, errNotFound) {
 		dbErrorResponse(c, err)
 		return
 	}
 
-	c.String(http.StatusOK, string(userdata.Userdata.Bytes))
+	if userdata != nil {
+		c.String(http.StatusOK, string(userdata.Userdata.Bytes))
+	} else {
+		notFoundResponse(c)
+	}
 }
 
 // instanceUserdataGetInternal retrieves the requested instance ID from the
@@ -200,16 +179,17 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 		return
 	}
 
-	upsertInstanceMetadata := func(c *gin.Context, exec boil.ContextExecutor) error {
-		newInstanceMetadata := &models.InstanceMetadatum{
-			ID:       params.ID,
-			Metadata: types.JSON(params.Metadata),
-		}
-
-		return newInstanceMetadata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("metadata"), boil.Infer())
+	newInstanceMetadata := &models.InstanceMetadatum{
+		ID:       params.getID(),
+		Metadata: types.JSON(params.Metadata),
 	}
 
-	handleUpsertRequest(c, r, params, upsertInstanceMetadata)
+	err := upserter.UpsertMetadata(c, r.DB, r.Logger, params.ID, params.getIPAddresses(), newInstanceMetadata)
+	if err != nil {
+		dbErrorResponse(c, err)
+	}
+
+	c.Status(http.StatusOK)
 }
 
 func (r *Router) instanceUserdataSet(c *gin.Context) {
@@ -226,170 +206,14 @@ func (r *Router) instanceUserdataSet(c *gin.Context) {
 		return
 	}
 
-	upsertInstanceUserdata := func(c *gin.Context, exec boil.ContextExecutor) error {
-		newInstanceUserdata := &models.InstanceUserdatum{
-			ID:       params.ID,
-			Userdata: null.NewBytes(params.Userdata, true),
-		}
-
-		return newInstanceUserdata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("userdata"), boil.Infer())
+	newInstanceUserdata := &models.InstanceUserdatum{
+		ID:       params.getID(),
+		Userdata: null.NewBytes(params.Userdata, true),
 	}
 
-	handleUpsertRequest(c, r, params, upsertInstanceUserdata)
-}
-
-func handleUpsertRequest(c *gin.Context, r *Router, params upsertDataRequest, upsertRecordFunc upsertRecord) {
-	// Step 1
-	// Look for any conflicting IP addresses (IPs already present and associated
-	// with a *different* Instance ID)
-	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(params.getIPAddresses()), models.InstanceIPAddressWhere.InstanceID.NEQ(params.getID())).All(c, r.DB)
-
+	err := upserter.UpsertUserdata(c, r.DB, r.Logger, params.ID, params.getIPAddresses(), newInstanceUserdata)
 	if err != nil {
 		dbErrorResponse(c, err)
-		return
-	}
-
-	// Step 2
-	// Look up any existing instance_ip_addresses rows for the provided instance_id
-	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(params.getID())).All(c, r.DB)
-
-	if err != nil {
-		dbErrorResponse(c, err)
-		return
-	}
-
-	// Step 2.5.a
-	// Find "stale" InstanceIPAddress rows for this instance. That is, select
-	// rows from the instanceIPAddresses result which don't have a corresponding
-	// entry in the list of IP Addresses supplied in the request.
-	var staleInstanceIPAddreses models.InstanceIPAddressSlice
-
-	for _, instanceIP := range instanceIPAddresses {
-		found := false
-
-		for _, paramIP := range params.getIPAddresses() {
-			if strings.EqualFold(instanceIP.Address, paramIP) {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			staleInstanceIPAddreses = append(staleInstanceIPAddreses, instanceIP)
-		}
-	}
-
-	// Step 2.5.b
-	// Find new IP Addresses that were specified in the request that aren't
-	// currently associated to the instance.
-	var newInstanceIPAddresses models.InstanceIPAddressSlice
-
-	for _, paramIP := range params.getIPAddresses() {
-		found := false
-
-		for _, instanceIP := range instanceIPAddresses {
-			if strings.EqualFold(paramIP, instanceIP.Address) {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			newRecord := &models.InstanceIPAddress{
-				InstanceID: params.getID(),
-				Address:    paramIP,
-			}
-			newInstanceIPAddresses = append(newInstanceIPAddresses, newRecord)
-		}
-	}
-
-	// Step 3
-	// Kick off the DB transaction
-	txErr := false
-
-	tx, err := r.DB.BeginTx(c, nil)
-	if err != nil {
-		dbErrorResponse(c, err)
-		return
-	}
-
-	// // If there's an error, we'll want to rollback the transaction.
-	defer func() {
-		if txErr {
-			err := tx.Rollback()
-			if err != nil {
-				r.Logger.Sugar().Error("Could not rollback transaction", "error", err)
-			}
-		}
-	}()
-
-	// Step 4
-	// Remove any instance_ip_address rows for the specified IP addresses that
-	// are currently associated to a *different* instance ID
-	for _, conflictingIP := range conflictIPs {
-		// TODO: Maybe remove instance_metadata and instance_userdata records for the "old" instance ID(s)?
-		// Potentially after checking to see if this IP was the *last* IP address associated to the
-		// "old" Instance ID?
-		_, err := conflictingIP.Delete(c, tx)
-		if err != nil {
-			txErr = true
-
-			dbErrorResponse(c, err)
-
-			return
-		}
-	}
-
-	// Step 5
-	// Remove any "stale" instance_ip_addresses rows associated to the provided
-	// instance_id but were not specified in this request.
-	for _, staleIP := range staleInstanceIPAddreses {
-		_, err := staleIP.Delete(c, tx)
-		if err != nil {
-			txErr = true
-
-			dbErrorResponse(c, err)
-
-			return
-		}
-	}
-
-	// Step 6
-	// Create instance_ip_addresses rows for any IP addresses specified in the
-	// request that aren't already associated to the provided instance_id
-	for _, newInstanceIP := range newInstanceIPAddresses {
-		err := newInstanceIP.Insert(c, tx, boil.Infer())
-		if err != nil {
-			txErr = true
-
-			dbErrorResponse(c, err)
-
-			return
-		}
-	}
-
-	// Step 7
-	// Upsert the instance_metadata or instance_userdata table. This will create
-	// a new row with the provided instance ID and metadata or userdata if there
-	// is no current row for instance_id. If there is an existing row matching on
-	// instance_id, instead this will just update the metadata or userdata column value.
-	if err := upsertRecordFunc(c, tx); err != nil {
-		txErr = true
-
-		dbErrorResponse(c, err)
-
-		return
-	}
-
-	// Step 8
-	// Commit our transaction
-	// if err := c.BindJSON(&params); err != nil {
-	if err := tx.Commit(); err != nil {
-		txErr = true
-
-		dbErrorResponse(c, err)
-
-		return
 	}
 
 	c.Status(http.StatusOK)

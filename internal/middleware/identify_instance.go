@@ -17,6 +17,11 @@ import (
 // instance has been identified.
 const ContextKeyInstanceID = "instance-id"
 
+// ContextKeyRequestorIP is the magic string set in the gin.Context key/value
+// store used for storing the IP address of a caller making a request for
+// metadata or userdata.
+const ContextKeyRequestorIP = "requestor-ip-address"
+
 // When a request comes in to the /metadata or /userdata endpoints (or the 2009-04-04/* variants)
 // we need to identify the instance making the request.
 // There's 2 ways to do this:
@@ -56,6 +61,8 @@ func IdentifyInstanceByIP(db *sqlx.DB) gin.HandlerFunc {
 		// (or METADATASERVICE_GIN_TRUSTED_PROXIES envvar) when starting the server
 		// to provide the list of trusted proxy IP's to use.
 		address = c.ClientIP()
+
+		c.Set(ContextKeyRequestorIP, address)
 
 		instanceIPAddress, err = models.InstanceIPAddresses(qm.Where("address >>= ?::inet", address)).One(c, db)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {

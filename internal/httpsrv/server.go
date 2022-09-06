@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
+	"go.hollow.sh/metadataservice/internal/lookup"
 	v1api "go.hollow.sh/metadataservice/pkg/api/v1"
 )
 
@@ -27,6 +28,8 @@ type Server struct {
 	DB             *sqlx.DB
 	AuthConfig     ginjwt.AuthConfig
 	TrustedProxies []string
+	LookupEnabled  bool
+	LookupClient   lookup.Client
 }
 
 var (
@@ -101,7 +104,7 @@ func (s *Server) setup() *gin.Engine {
 	r.GET("/healthz/liveness", s.livenessCheck)
 	r.GET("/healthz/readiness", s.readinessCheck)
 
-	v1Rtr := v1api.Router{AuthMW: authMW, DB: s.DB, Logger: s.Logger}
+	v1Rtr := v1api.Router{AuthMW: authMW, DB: s.DB, Logger: s.Logger, LookupEnabled: s.LookupEnabled, LookupClient: s.LookupClient}
 
 	// Host our latest version of the API under / in addition to /api/v*
 	latest := r.Group("/")
