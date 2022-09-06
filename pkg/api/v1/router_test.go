@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"text/template"
 
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
@@ -14,8 +15,9 @@ import (
 )
 
 type TestServerConfig struct {
-	LookupEnabled bool
-	LookupClient  lookup.Client
+	LookupEnabled  bool
+	LookupClient   lookup.Client
+	TemplateFields map[string]template.Template
 }
 
 func testHTTPServer(t *testing.T) *http.Handler {
@@ -38,6 +40,7 @@ func testHTTPServerWithConfig(t *testing.T, config TestServerConfig) *http.Handl
 
 	hs.LookupEnabled = config.LookupEnabled
 	hs.LookupClient = config.LookupClient
+	hs.TemplateFields = config.TemplateFields
 
 	s := hs.NewServer()
 

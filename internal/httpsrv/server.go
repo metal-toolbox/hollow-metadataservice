@@ -3,6 +3,7 @@ package httpsrv
 import (
 	"net/http"
 	"os"
+	"text/template"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -30,6 +31,7 @@ type Server struct {
 	TrustedProxies []string
 	LookupEnabled  bool
 	LookupClient   lookup.Client
+	TemplateFields map[string]template.Template
 }
 
 var (
@@ -104,7 +106,7 @@ func (s *Server) setup() *gin.Engine {
 	r.GET("/healthz/liveness", s.livenessCheck)
 	r.GET("/healthz/readiness", s.readinessCheck)
 
-	v1Rtr := v1api.Router{AuthMW: authMW, DB: s.DB, Logger: s.Logger, LookupEnabled: s.LookupEnabled, LookupClient: s.LookupClient}
+	v1Rtr := v1api.Router{AuthMW: authMW, DB: s.DB, Logger: s.Logger, LookupEnabled: s.LookupEnabled, LookupClient: s.LookupClient, TemplateFields: s.TemplateFields}
 
 	// Host our latest version of the API under / in addition to /api/v*
 	latest := r.Group("/")
