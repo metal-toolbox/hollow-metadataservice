@@ -13,6 +13,11 @@ import (
 	"go.hollow.sh/metadataservice/internal/lookup"
 )
 
+type TestServerConfig struct {
+	LookupEnabled bool
+	LookupClient  lookup.Client
+}
+
 func testHTTPServer(t *testing.T) *http.Handler {
 	authConfig := ginjwt.AuthConfig{}
 
@@ -25,12 +30,14 @@ func testHTTPServer(t *testing.T) *http.Handler {
 	return &s.Handler
 }
 
-func testHTTPServerWithLookup(t *testing.T, lookupClient lookup.Client) *http.Handler {
+func testHTTPServerWithConfig(t *testing.T, config TestServerConfig) *http.Handler {
 	authConfig := ginjwt.AuthConfig{}
-
 	db := dbtools.DatabaseTest(t)
 
-	hs := httpsrv.Server{Logger: zap.NewNop(), AuthConfig: authConfig, DB: db, LookupEnabled: true, LookupClient: lookupClient}
+	hs := httpsrv.Server{Logger: zap.NewNop(), AuthConfig: authConfig, DB: db}
+
+	hs.LookupEnabled = config.LookupEnabled
+	hs.LookupClient = config.LookupClient
 
 	s := hs.NewServer()
 
