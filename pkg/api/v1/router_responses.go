@@ -1,13 +1,17 @@
 package metadataservice
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"text/template"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/volatiletech/sqlboiler/v4/types"
 )
 
 // ErrorResponse represents an error response record
@@ -68,4 +72,37 @@ func getErrorMessageFromError(err error) string {
 	}
 
 	return errMsg
+}
+
+// addTemplateFields will unmarshal the raw JSON and attempt to augment it with
+// the configured template fields.
+// If an error occurs unmarshalling the json, or an error occurs while
+// executing a template, we'll just return nil, err.
+func addTemplateFields(metadata types.JSON, templateFields map[string]template.Template) (map[string]interface{}, error) {
+	// Attempt to unmarshal the stored json for the instance.
+	resp := make(map[string]interface{})
+	err := json.Unmarshal(metadata, &resp)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Now that we've unmarshaled the raw json message, augment it with the templated fields
+	for k, v := range templateFields {
+		// If the metadata already has a field with a matching name, just use what was provided.
+		if _, ok := resp[k]; ok {
+			continue
+		}
+
+		templateBuf := new(bytes.Buffer)
+
+		err = v.Execute(templateBuf, resp)
+		if err != nil {
+			return nil, err
+		}
+
+		resp[k] = templateBuf.String()
+	}
+
+	return resp, nil
 }

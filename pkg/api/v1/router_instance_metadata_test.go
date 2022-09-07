@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
+	"text/template"
 
 	"github.com/stretchr/testify/assert"
 
@@ -112,6 +113,61 @@ func TestGetMetadataByIP(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
+	phoneHomeTmpl, err := template.New("phoneHomeURL").Parse("https://{{.facility}}.phone.home/phone-home")
+	if err != nil {
+		t.Error(err)
+	}
+
+	userStateTmpl, err := template.New("userStateURL").Parse("https://{{.metro}}.user.state/events/{{.id}}")
+	if err != nil {
+		t.Error(err)
+	}
+
+	missingFieldTmpl, err := template.New("missingField").Parse("{{if .missingField}} oh look it's {{.missingField}}{{end}}")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Test that the template system doesn't replace a field that's already present in the metadata response
+	existingFieldTmpl, err := template.New("hostname").Parse("HEY I'M A TEMPLATE FOR {{.hostname}}")
+	if err != nil {
+		t.Error(err)
+	}
+
+	config := TestServerConfig{
+		TemplateFields: map[string]template.Template{
+			"phone_home_url": *phoneHomeTmpl,
+			"user_state_url": *userStateTmpl,
+			"missing_field":  *missingFieldTmpl,
+			"hostname":       *existingFieldTmpl,
+		},
+	}
+
+	router := *testHTTPServerWithConfig(t, config)
+
+	// Get the metadata for instance A, and check that the template fields were returned as expected
+	w := httptest.NewRecorder()
+
+	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetMetadataPath(), nil)
+	req.RemoteAddr = net.JoinHostPort(dbtools.FixtureInstanceA.HostIPs[0], "0")
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resultMap map[string]interface{}
+
+	err = json.Unmarshal(w.Body.Bytes(), &resultMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, "https://da11.phone.home/phone-home", resultMap["phone_home_url"])
+	assert.Equal(t, fmt.Sprintf("https://da.user.state/events/%s", dbtools.FixtureInstanceA.InstanceID), resultMap["user_state_url"])
+	assert.Equal(t, "instance-a", resultMap["hostname"])
+	assert.Nil(t, resultMap["missingField"])
 }
 
 // TestSetMetadataRequestValidations tests the different validations performed
