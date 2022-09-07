@@ -137,12 +137,19 @@ func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
 		t.Error(err)
 	}
 
+	// Test that a field can just be static text
+	staticTextTmpl, err := template.New("staticText").Parse("just some static text")
+	if err != nil {
+		t.Error(err)
+	}
+
 	config := TestServerConfig{
 		TemplateFields: map[string]template.Template{
 			"phone_home_url": *phoneHomeTmpl,
 			"user_state_url": *userStateTmpl,
 			"missing_field":  *missingFieldTmpl,
 			"hostname":       *existingFieldTmpl,
+			"static_text":    *staticTextTmpl,
 		},
 	}
 
@@ -168,6 +175,7 @@ func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("https://da.user.state/events/%s", dbtools.FixtureInstanceA.InstanceID), resultMap["user_state_url"])
 	assert.Equal(t, "instance-a", resultMap["hostname"])
 	assert.Nil(t, resultMap["missingField"])
+	assert.Equal(t, "just some static text", resultMap["static_text"])
 }
 
 // TestSetMetadataRequestValidations tests the different validations performed
