@@ -178,6 +178,43 @@ func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
 	assert.Equal(t, "just some static text", resultMap["static_text"])
 }
 
+func TestGetMetadataByIPWithErrorTemplate(t *testing.T) {
+	// Test that if an error occurs attempting to produce output for a template
+	// field, we just return the original metadata.
+	missingFieldTmpl, err := template.New("missingField").Option("missingkey=error").Parse("oh look it's {{.missingField}}")
+	if err != nil {
+		t.Error(err)
+	}
+
+	config := TestServerConfig{
+		TemplateFields: map[string]template.Template{
+			"missing_field": *missingFieldTmpl,
+		},
+	}
+
+	router := *testHTTPServerWithConfig(t, config)
+
+	// Get the metadata for instance A, and check that the missing template field is not returned due to error
+	w := httptest.NewRecorder()
+
+	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetMetadataPath(), nil)
+	req.RemoteAddr = net.JoinHostPort(dbtools.FixtureInstanceA.HostIPs[0], "0")
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resultMap map[string]interface{}
+
+	err = json.Unmarshal(w.Body.Bytes(), &resultMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v, ok := resultMap["missingField"]
+	assert.False(t, ok)
+	assert.Nil(t, v)
+}
+
 // TestSetMetadataRequestValidations tests the different validations performed
 // on the request body
 func TestSetMetadataRequestValidations(t *testing.T) {
