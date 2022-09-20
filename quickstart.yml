@@ -4,8 +4,10 @@ services:
   metadataservice:
     image: ghcr.io/metal-toolbox/hollow-metadaaservice:v0.0.1
     depends_on:
-      - crdb
-      - metadataservice-migrate
+      crdb:
+        condition: service_healthy
+      metadataservice-migrate:
+        condition: service_completed_successfully
     environment:
       - METADATASERVICE_OIDC_ENABLED=false
       - METADATASERVICE_DB_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable
@@ -20,7 +22,8 @@ services:
     command:
       migrate up
     depends_on:
-      - crdb
+      crdb:
+        condition: service_healthy
     environment:
       - METADATASERVICE_DB_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable
     restart: on-failure
@@ -36,6 +39,12 @@ services:
       - "8080:8080"
       - "26257:26257"
     restart: unless-stopped
+    healthcheck:
+      test: "curl http://localhost:8080/health?ready=1"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - metadataservice
 

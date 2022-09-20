@@ -310,7 +310,7 @@ To update the userdata for an instance, or to change the IP addresses associated
 To delete the userdata associated to an instance, issue an authenticated `DELETE` request to `/device-userdata/:instance-id`.
 
 ## Dealing with Conflicts
-Because IP addresses tend to be a shared and reusable resource, it's possible for the metadata service and the external source-of-truth to become out-of-sync. For example, if the external system fails to `DELETE` the metadata associated to an instance while deprovisioning the instance, and then proceeds to re-issue the deprovisioned instances' IP Addresses to a new instance.
+Because IP addresses tend to be a shared and reusable resource, it's possible for the metadata service and the external source-of-truth to become out-of-sync. For example, if the external system fails to `DELETE` the metadata associated to an instance while deprovisioning the instance, and then proceeds to re-issue the deprovisioned instances' IP addresses to a new instance.
 
 To address this, the service has a couple requirements:
 1. All IP addresses associated to an instance must always be specified any time metadata or userdata records are created or updated for an instance.
@@ -321,7 +321,7 @@ This means that if a metadata record is created for an instance ID `87303132-096
 Additionally, if a new request for a different instance ID is received, but it includes an IP address that's already associated to another instance, that IP address will be dissociated from the previous instance and associated to the instance ID specified in the request.
 
 ## Fetching Data from an Upstream Source of Truth
-If the external source of truth has not sent a `POST` request to create a metadata or userdata record for an instance IP address, the service can optionally try to fetch the data from an external system when a request for metadata is received from the instance. The response will then be cached by the service and served up for any subsequent requests made by the instance.
+If the external source of truth has not sent a `POST` request to create a metadata or userdata record for an instance IP address, the service can optionally try to fetch the data from an external system when a request for metadata is received from the instance. The response will then be cached by the service and served up for any subsequent requests made by the instance. See the section on [configuring an external source of truth](#configuring-an-external-source-of-truth) for more information.
 
 ## Some Diagrams
 
@@ -443,6 +443,21 @@ external source of truth ->>metadataservice: GET /device-metadata/820a7791-b6d1-
 Note right of metadataservice: Fetch instance_metadata row for ID 820a7791-b6d1-4319-a748-5614797f5047
 metadataservice-->>external source of truth: Return metadata for instance ID 820a7791-b6d1-4319-a748-5614797f5047
 ```
+
+## Configuring an external source of truth
+
+To successfully use the metadata service, all that is needed is an external system capable of "pushing" updates (in the form of `POST`s and `DELETE`s) to the service. However, it is also possible that you might want to operate the service in a "pull"-oriented style, where data is only added to the metadata service on-demand. To facilitate this, the metadata service can also call out to the external source of truth when processing a request made by an instance, and the service does not already have data for that instance stored locally. See the diagram for [Metadata or userdata request when the instance IP is not known](#metadata-or-userdata-request-when-the-instance-ip-is-not-known) for a visualization.
+
+This upstream service should expose a couple of HTTP endpoints to support this flow:
+
+- `GET /device-metadata/:instance-id`
+- `GET /device-metadata?ip_address=[the requesting instance's IP]`
+- `GET /device-userdata/:instance-id`
+- `GET /device-userdata?ip_address=[the requesting instance's IP]`
+
+This lookup functionality is disabled by default, but can be enabled by setting the `--lookup-enabled` and `--lookup-base-url` flags (or via the `METADATASERVICE_LOOKUP_ENABLED` and `METADATASERVICE_LOOKUP_BASEURL` enviroment variables).
+
+Additional flags and environment variables for controlling authentication via Oauth can be found in [cmd/serve.go](cmd/serve.go) under "Lookup Service Flags".
 
 
 ### Creating database migrations

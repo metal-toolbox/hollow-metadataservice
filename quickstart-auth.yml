@@ -1,0 +1,93 @@
+version: "3.9"
+
+services:
+  metadataservice:
+    environment:
+      - METADATASERVICE_OIDC_ENABLED=true
+      - METADATASERVICE_OIDC_AUDIENCE=http://127.0.0.1:8000
+      - METADATASERVICE_OIDC_ISSUER=http://hydra:4444/
+      - METADATASERVICE_OIDC_JWKSURI=http://hydra:4444/.well-known/jwks.json
+      - METADATASERVICE_OIDC_CLAIMS_ROLES=scp
+    depends_on:
+      hydra:
+        condition: service_started
+
+  postgres:
+    image: postgres:9.6
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=hydra
+      - POSTGRES_PASSWORD=secret
+      - POSGTRES_DB=hydra
+    healthcheck:
+      test: "pg_isready -U hydra"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - metadataservice
+
+  hydra:
+    environment:
+      - SERVE_COOKIES_SAME_SITE_MODE=Lax
+      - URLS_SELF_ISSUER=http://hydra:4444
+      - URLS_CONSENT=http://hydra:3000/consent
+      - URLS_LOGIN=http://hydra:3000/login
+      - URL_LOGOUT=http://hydra:3000/logout
+      - SECRETS_SYSTEM=youReallyNeedToChangeThis
+      - OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT=youReallyNeedToChangeThis
+      - STRATEGIES_ACCESS_TOKEN=jwt
+      - OIDC_SUBJECT_IDENTIFIERS_SUPPORTED_TYPES=public
+      - DSN=postgres://hydra:secret@postgres:5432/hydra?sslmode=disable&max_conns=20&max_idle_conns=4
+    image: oryd/hydra:v1.10.6-sqlite
+    ports:
+      - "4444:4444" # Public port
+      - "4445:4445" # Admin port
+      - "5555:5555" # Port for hydra token user
+    command:
+      serve all --dangerous-force-http
+    volumes:
+      -
+        type: volume
+        source: hydra-sqlite
+        target: /var/lib/sqlite
+        read_only: false
+    restart: unless-stopped
+    depends_on:
+      hydra-migrate:
+        condition: service_completed_successfully
+    networks:
+      - metadataservice
+
+  hydra-migrate:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    image: oryd/hydra:v1.10.6-sqlite
+    environment:
+      - DSN=postgres://hydra:secret@postgres:5432/hydra?sslmode=disable&max_conns=20&max_idle_conns=4
+      - SERVE_COOKIES_SAME_SITE_MODE=Lax
+      - URLS_SELF_ISSUER=http://hydra:4444
+      - URLS_CONSENT=http://hydra:3000/consent
+      - URLS_LOGIN=http://hydra:3000/login
+      - URL_LOGOUT=http://hydra:3000/logout
+      - SECRETS_SYSTEM=youReallyNeedToChangeThis
+      - OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT=youReallyNeedToChangeThis
+      - STRATEGIES_ACCESS_TOKEN=jwt
+      - OIDC_SUBJECT_IDENTIFIERS_SUPPORTED_TYPES=public
+    command:
+      migrate sql -e --yes
+    volumes:
+      -
+        type: volume
+        source: hydra-sqlite
+        target: /var/lib/sqlite
+        read_only: false
+    restart: on-failure
+    networks:
+      - metadataservice
+
+volumes:
+  hydra-sqlite:
