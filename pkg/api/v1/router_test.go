@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"text/template"
 
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
@@ -12,6 +13,12 @@ import (
 	"go.hollow.sh/metadataservice/internal/httpsrv"
 	"go.hollow.sh/metadataservice/internal/lookup"
 )
+
+type TestServerConfig struct {
+	LookupEnabled  bool
+	LookupClient   lookup.Client
+	TemplateFields map[string]template.Template
+}
 
 func testHTTPServer(t *testing.T) *http.Handler {
 	authConfig := ginjwt.AuthConfig{}
@@ -25,12 +32,15 @@ func testHTTPServer(t *testing.T) *http.Handler {
 	return &s.Handler
 }
 
-func testHTTPServerWithLookup(t *testing.T, lookupClient lookup.Client) *http.Handler {
+func testHTTPServerWithConfig(t *testing.T, config TestServerConfig) *http.Handler {
 	authConfig := ginjwt.AuthConfig{}
-
 	db := dbtools.DatabaseTest(t)
 
-	hs := httpsrv.Server{Logger: zap.NewNop(), AuthConfig: authConfig, DB: db, LookupEnabled: true, LookupClient: lookupClient}
+	hs := httpsrv.Server{Logger: zap.NewNop(), AuthConfig: authConfig, DB: db}
+
+	hs.LookupEnabled = config.LookupEnabled
+	hs.LookupClient = config.LookupClient
+	hs.TemplateFields = config.TemplateFields
 
 	s := hs.NewServer()
 

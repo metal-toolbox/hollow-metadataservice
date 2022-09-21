@@ -7,6 +7,7 @@ import (
 	"path"
 	"reflect"
 	"strings"
+	"text/template"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -62,11 +63,12 @@ var (
 
 // Router provides a router for the v1 API
 type Router struct {
-	AuthMW        *ginjwt.Middleware
-	DB            *sqlx.DB
-	Logger        *zap.Logger
-	LookupEnabled bool
-	LookupClient  lookup.Client
+	AuthMW         *ginjwt.Middleware
+	DB             *sqlx.DB
+	Logger         *zap.Logger
+	LookupEnabled  bool
+	LookupClient   lookup.Client
+	TemplateFields map[string]template.Template
 }
 
 // Routes will add the routes for this API version to a router group

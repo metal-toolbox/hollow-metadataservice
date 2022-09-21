@@ -15,7 +15,8 @@ import (
 
 func TestGetEc2MetadataLookupByIP(t *testing.T) {
 	lookupClient := newMockLookupClient()
-	router := *testHTTPServerWithLookup(t, lookupClient)
+	serverConfig := TestServerConfig{LookupEnabled: true, LookupClient: lookupClient}
+	router := *testHTTPServerWithConfig(t, serverConfig)
 
 	type testCase struct {
 		testName       string
@@ -73,7 +74,8 @@ func TestGetEc2MetadataLookupByIP(t *testing.T) {
 
 func TestGetEc2MetadataItemLookupByIP(t *testing.T) {
 	lookupClient := newMockLookupClient()
-	router := *testHTTPServerWithLookup(t, lookupClient)
+	serverConfig := TestServerConfig{LookupEnabled: true, LookupClient: lookupClient}
+	router := *testHTTPServerWithConfig(t, serverConfig)
 
 	type testCase struct {
 		testName       string

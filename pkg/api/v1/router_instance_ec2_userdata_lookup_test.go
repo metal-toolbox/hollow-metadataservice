@@ -15,7 +15,8 @@ import (
 
 func TestGetEc2UserdataLookupByIP(t *testing.T) {
 	lookupClient := newMockLookupClient()
-	router := *testHTTPServerWithLookup(t, lookupClient)
+	serverConfig := TestServerConfig{LookupEnabled: true, LookupClient: lookupClient}
+	router := *testHTTPServerWithConfig(t, serverConfig)
 
 	type testCase struct {
 		testName       string

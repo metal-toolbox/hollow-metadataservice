@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"net/url"
+	"text/template"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -102,6 +103,12 @@ func init() {
 	// Misc serve flags
 	serveCmd.Flags().StringSlice("gin-trusted-proxies", []string{}, "Comma-separated list of IP addresses, like `\"192.168.1.1,10.0.0.1\"`. When running the Metadata Service behind something like a reverse proxy or load balancer, you may need to set this so that gin's `(*Context).ClientIP()` method returns a value provided by the proxy in a header like `X-Forwarded-For`.")
 	viperBindFlag("gin.trustedproxies", serveCmd.Flags().Lookup("gin-trusted-proxies"))
+
+	serveCmd.Flags().String("phone-home-url", "", "An optional golang template string used to build a URL which instances can use as part of a 'phone home' process. This template string will be evaluated against the instance metadata, and appended as a 'phone_home_url' field on the metadata document served to instances. If no template string is specified, the 'phone_home_url' field will not be added to the metadata document.")
+	viperBindFlag("metadata.phone_home_url", serveCmd.Flags().Lookup("phone-home-url"))
+
+	serveCmd.Flags().String("user-state-url", "", "An optional golang template string used to build a URL which instances can use for sending user state events. This template string will be evaluated against the instance metadata, and appended as a 'user_state_url' field on the metadata document served to instances. If no template string is specified, the 'user_state_url' field will not be added to the metadata document.")
+	viperBindFlag("metadata.user_state_url", serveCmd.Flags().Lookup("user-state-url"))
 }
 
 func serve(ctx context.Context) {
@@ -131,6 +138,7 @@ func serve(ctx context.Context) {
 		TrustedProxies: viper.GetStringSlice("gin.trustedproxies"),
 		LookupEnabled:  viper.GetBool("lookup.enabled"),
 		LookupClient:   lookupClient,
+		TemplateFields: getTemplateFields(),
 	}
 
 	if err := hs.Run(); err != nil {
@@ -152,4 +160,31 @@ func getLookupClient(ctx context.Context) (*lookup.ServiceClient, error) {
 	}
 
 	return nil, nil
+}
+
+func getTemplateFields() map[string]template.Template {
+	templates := make(map[string]template.Template)
+
+	phoneHomeURL := viper.GetString("metadata.phone_home_url")
+	userStateURL := viper.GetString("metadata.user_state_url")
+
+	if len(phoneHomeURL) > 0 {
+		phoneHomeTempl, err := template.New("phoneHomeURL").Parse(phoneHomeURL)
+		if err != nil {
+			logger.Fatalf("failed to parse phone home URL template (%s)", phoneHomeURL, "error", err)
+		}
+
+		templates["phone_home_url"] = *phoneHomeTempl
+	}
+
+	if len(userStateURL) > 0 {
+		userStateTempl, err := template.New("userStateURL").Parse(userStateURL)
+		if err != nil {
+			logger.Fatalf("failed to parse user state URL template (%s)", userStateURL, "error", err)
+		}
+
+		templates["user_state_url"] = *userStateTempl
+	}
+
+	return templates
 }

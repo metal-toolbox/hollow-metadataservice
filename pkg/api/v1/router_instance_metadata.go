@@ -65,7 +65,15 @@ func (r *Router) instanceMetadataGet(c *gin.Context) {
 	}
 
 	if metadata != nil {
-		c.JSON(http.StatusOK, metadata.Metadata)
+		augmentedMetadata, err := addTemplateFields(metadata.Metadata, r.TemplateFields)
+		if err != nil {
+			r.Logger.Sugar().Warnf("Error adding additional templated fields to metadata for instance %s", metadata.ID, "error", err)
+
+			// Since we couldn't add the templated fields, just return the metadata as-is
+			c.JSON(http.StatusOK, metadata.Metadata)
+		} else {
+			c.JSON(http.StatusOK, augmentedMetadata)
+		}
 	} else {
 		notFoundResponse(c)
 	}
@@ -95,7 +103,15 @@ func (r *Router) instanceMetadataGetInternal(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, metadata.Metadata)
+	augmentedMetadata, err := addTemplateFields(metadata.Metadata, r.TemplateFields)
+	if err != nil {
+		r.Logger.Sugar().Warnf("Error adding additional templated fields to metadata for instance %s", metadata.ID, "error", err)
+
+		// Since we couldn't add the templated fields, just return the metadata as-is
+		c.JSON(http.StatusOK, metadata.Metadata)
+	} else {
+		c.JSON(http.StatusOK, augmentedMetadata)
+	}
 }
 
 func (r *Router) instanceUserdataGet(c *gin.Context) {
