@@ -30,7 +30,7 @@ require (
 	go.opentelemetry.io/otel/exporters/jaeger v1.8.0
 	go.opentelemetry.io/otel/sdk v1.8.0
 	go.uber.org/zap v1.21.0
-	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094
+	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783
 )
 
 require (
