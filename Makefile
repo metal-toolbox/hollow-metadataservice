@@ -35,7 +35,7 @@ clean: docker-clean
 
 vendor:
 	@go mod download
-	@go mod tidy
+	@go mod tidy -go=1.18
 
 docker-up:
 	@docker-compose -f quickstart.yml up -d crdb
