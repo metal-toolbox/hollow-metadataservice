@@ -82,8 +82,8 @@ func init() {
 	serveCmd.Flags().Bool("lookup-enabled", false, "Use the lookup client to attempt to fetch metadata or userdata from an upstream source when it is not cached locall for the instance")
 	viperBindFlag("lookup.enabled", serveCmd.Flags().Lookup("lookup-enabled"))
 
-	serveCmd.Flags().String("lookup-base-url", "", "A base url (like 'https://metadata-lookup-service.tld/api/v1/') to use when fetching metadata or userdata from an upstream source")
-	viperBindFlag("lookup.baseurl", serveCmd.Flags().Lookup("lookup-base-url"))
+	serveCmd.Flags().String("lookup-service-url", "", "URL to the metadata lookup service (like 'https://metadata-lookup-service.tld/api/v1/') to use when fetching metadata or userdata from an upstream source")
+	viperBindFlag("lookup.service.url", serveCmd.Flags().Lookup("lookup-service-url"))
 
 	serveCmd.Flags().String("lookup-oidc-issuer", "", "OIDC JWT issuer to the lookup service")
 	viperBindFlag("lookup.oidc.issuer", serveCmd.Flags().Lookup("lookup-oidc-issuer"))
@@ -156,7 +156,7 @@ func getLookupClient(ctx context.Context) (*lookup.ServiceClient, error) {
 			EndpointParams: url.Values{"audience": []string{viper.GetString("lookup.oidc.audience")}},
 		}
 
-		return lookup.NewClient(logger.Desugar(), viper.GetString("lookup.basepath"), oauthConfig.Client(ctx))
+		return lookup.NewClient(logger.Desugar(), viper.GetString("lookup.service.url"), oauthConfig.Client(ctx))
 	}
 
 	return nil, nil
