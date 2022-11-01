@@ -6,6 +6,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2/clientcredentials"
@@ -148,10 +149,15 @@ func serve(ctx context.Context) {
 
 func getLookupClient(ctx context.Context) (*lookup.ServiceClient, error) {
 	if viper.GetBool("lookup.enabled") {
+		provider, err := oidc.NewProvider(ctx, viper.GetString("lookup.oidc.issuer"))
+		if err != nil {
+			return nil, err
+		}
+
 		oauthConfig := clientcredentials.Config{
 			ClientID:       viper.GetString("lookup.oidc.clientid"),
 			ClientSecret:   viper.GetString("lookup.oidc.clientsecret"),
-			TokenURL:       viper.GetString("lookup.oidc.issuer"),
+			TokenURL:       provider.Endpoint().TokenURL,
 			Scopes:         viper.GetStringSlice("lookup.oidc.scopes"),
 			EndpointParams: url.Values{"audience": []string{viper.GetString("lookup.oidc.audience")}},
 		}
