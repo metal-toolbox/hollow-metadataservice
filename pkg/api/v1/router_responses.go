@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/volatiletech/sqlboiler/v4/types"
+	"go.uber.org/zap"
 )
 
 // ErrorResponse represents an error response record
@@ -20,10 +21,12 @@ type ErrorResponse struct {
 	Errors  []string `json:"errors,omitempty"`
 }
 
-func dbErrorResponse(c *gin.Context, err error) {
+func dbErrorResponse(logger *zap.Logger, c *gin.Context, err error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		notFoundResponse(c)
 	} else {
+		logger.Error("database error", zap.Error(err))
+
 		c.JSON(http.StatusInternalServerError, &ErrorResponse{Errors: []string{"internal server error"}})
 	}
 }

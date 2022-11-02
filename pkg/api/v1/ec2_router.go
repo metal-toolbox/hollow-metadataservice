@@ -30,9 +30,9 @@ const (
 func (r *Router) Ec2Routes(rg *gin.RouterGroup) {
 	// GET /2009-04-04/meta-data/:item-name
 	// GET /2009-04-04/user-data
-	rg.GET(Ec2MetadataURI, middleware.IdentifyInstanceByIP(r.DB), r.instanceEc2MetadataGet)
-	rg.GET(Ec2MetadataItemURI, middleware.IdentifyInstanceByIP(r.DB), r.instanceEc2MetadataItemGet)
-	rg.GET(Ec2UserdataURI, middleware.IdentifyInstanceByIP(r.DB), r.instanceEc2UserdataGet)
+	rg.GET(Ec2MetadataURI, middleware.IdentifyInstanceByIP(r.Logger, r.DB), r.instanceEc2MetadataGet)
+	rg.GET(Ec2MetadataItemURI, middleware.IdentifyInstanceByIP(r.Logger, r.DB), r.instanceEc2MetadataItemGet)
+	rg.GET(Ec2UserdataURI, middleware.IdentifyInstanceByIP(r.Logger, r.DB), r.instanceEc2UserdataGet)
 }
 
 // GetEc2MetadataPath returns the path used to fetch a list of the ec2-style

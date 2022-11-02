@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"go.hollow.sh/metadataservice/internal/dbtools"
 	"go.hollow.sh/metadataservice/internal/middleware"
@@ -75,8 +76,9 @@ func TestIdentifyInstanceByIP(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testName, func(t *testing.T) {
+			logger := zap.NewNop()
 			r := gin.New()
-			r.Use(middleware.IdentifyInstanceByIP(testdb))
+			r.Use(middleware.IdentifyInstanceByIP(logger, testdb))
 			r.GET("/", func(c *gin.Context) {
 				instanceIDValue, found := c.Get(middleware.ContextKeyInstanceID)
 
@@ -104,6 +106,7 @@ func TestIdentifyInstanceByIPWithTrustedProxies(t *testing.T) {
 
 	proxyIP := "1.2.3.4"
 
+	logger := zap.NewNop()
 	trustedProxies := []string{proxyIP}
 	r := gin.New()
 	err := r.SetTrustedProxies(trustedProxies)
@@ -114,7 +117,7 @@ func TestIdentifyInstanceByIPWithTrustedProxies(t *testing.T) {
 
 	hostAIP := dbtools.FixtureInstanceA.HostIPs[0]
 
-	r.Use(middleware.IdentifyInstanceByIP(testdb))
+	r.Use(middleware.IdentifyInstanceByIP(logger, testdb))
 	r.GET("/", func(c *gin.Context) {
 		instanceIDValue, found := c.Get(middleware.ContextKeyInstanceID)
 

@@ -45,7 +45,7 @@ func (r *Router) instanceEc2MetadataGet(c *gin.Context) {
 		if errors.Is(err, errNotFound) {
 			notFoundResponse(c)
 		} else {
-			dbErrorResponse(c, err)
+			dbErrorResponse(r.Logger, c, err)
 		}
 
 		return
@@ -70,14 +70,14 @@ func (r *Router) instanceEc2MetadataItemGet(c *gin.Context) {
 		if errors.Is(err, errNotFound) {
 			notFoundResponse(c)
 		} else {
-			dbErrorResponse(c, err)
+			dbErrorResponse(r.Logger, c, err)
 		}
 
 		return
 	}
 
 	if err != nil {
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 		return
 	}
 
@@ -109,7 +109,7 @@ func (r *Router) instanceEc2UserdataGet(c *gin.Context) {
 		if errors.Is(err, errNotFound) {
 			notFoundResponse(c)
 		} else {
-			dbErrorResponse(c, err)
+			dbErrorResponse(r.Logger, c, err)
 		}
 
 		return

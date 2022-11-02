@@ -60,7 +60,7 @@ func (r *Router) instanceMetadataGet(c *gin.Context) {
 	// error wasn't a "not found" error, we should just return a generic 500
 	// error result to the caller.
 	if err != nil && !errors.Is(err, errNotFound) {
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 		return
 	}
 
@@ -99,7 +99,7 @@ func (r *Router) instanceMetadataGetInternal(c *gin.Context) {
 		// Here, we don't want to try to look up the metadata from an external
 		// system, as this endpoint should only return data for instances it
 		// already knows about
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 		return
 	}
 
@@ -121,7 +121,7 @@ func (r *Router) instanceUserdataGet(c *gin.Context) {
 	// error wasn't a "not found" error, we should just return a generic 500
 	// error result to the caller.
 	if err != nil && !errors.Is(err, errNotFound) {
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 		return
 	}
 
@@ -152,7 +152,7 @@ func (r *Router) instanceUserdataGetInternal(c *gin.Context) {
 		// Here, we don't want to try to look up the userdata from an external
 		// system, as this endpoint should only return data for instances it
 		// already knows about
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 		return
 	}
 
@@ -202,7 +202,7 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 
 	err := upserter.UpsertMetadata(c, r.DB, r.Logger, params.ID, params.getIPAddresses(), newInstanceMetadata)
 	if err != nil {
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 	}
 
 	c.Status(http.StatusOK)
@@ -229,7 +229,7 @@ func (r *Router) instanceUserdataSet(c *gin.Context) {
 
 	err := upserter.UpsertUserdata(c, r.DB, r.Logger, params.ID, params.getIPAddresses(), newInstanceUserdata)
 	if err != nil {
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 	}
 
 	c.Status(http.StatusOK)
@@ -249,7 +249,7 @@ func (r *Router) instanceMetadataDelete(c *gin.Context) {
 	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 		return
 	}
 
@@ -270,7 +270,7 @@ func (r *Router) instanceUserdataDelete(c *gin.Context) {
 	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 		return
 	}
 
@@ -292,7 +292,7 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		metadata, err = models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
 		// An ErrNoRows error is expected, so disregard it.
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			dbErrorResponse(c, err)
+			dbErrorResponse(r.Logger, c, err)
 			return
 		}
 	}
@@ -301,7 +301,7 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		userdata, err = models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
 		// An ErrNoRows error is expected, so disregard it.
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			dbErrorResponse(c, err)
+			dbErrorResponse(r.Logger, c, err)
 			return
 		}
 	}
@@ -323,7 +323,7 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 
 	tx, err := r.DB.BeginTx(c, nil)
 	if err != nil {
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 		return
 	}
 
@@ -344,7 +344,7 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		if err != nil {
 			txErr = true
 
-			dbErrorResponse(c, err)
+			dbErrorResponse(r.Logger, c, err)
 
 			return
 		}
@@ -355,7 +355,7 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		if err != nil {
 			txErr = true
 
-			dbErrorResponse(c, err)
+			dbErrorResponse(r.Logger, c, err)
 
 			return
 		}
@@ -369,7 +369,7 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		if err != nil {
 			txErr = true
 
-			dbErrorResponse(c, err)
+			dbErrorResponse(r.Logger, c, err)
 
 			return
 		}
@@ -380,7 +380,7 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 	if err := tx.Commit(); err != nil {
 		txErr = true
 
-		dbErrorResponse(c, err)
+		dbErrorResponse(r.Logger, c, err)
 
 		return
 	}

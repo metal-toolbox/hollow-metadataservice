@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
+	"go.uber.org/zap"
 
 	"go.hollow.sh/metadataservice/internal/models"
 )
@@ -42,7 +43,7 @@ const ContextKeyRequestorIP = "requestor-ip-address"
 // request by looking at the request IP.
 // If a row in the instance_ip_addresses table is found with a matching IP
 // address, we set the instance ID in the context.
-func IdentifyInstanceByIP(db *sqlx.DB) gin.HandlerFunc {
+func IdentifyInstanceByIP(logger *zap.Logger, db *sqlx.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var (
 			address           string
@@ -66,6 +67,8 @@ func IdentifyInstanceByIP(db *sqlx.DB) gin.HandlerFunc {
 
 		instanceIPAddress, err = models.InstanceIPAddresses(qm.Where("address >>= ?::inet", address)).One(c, db)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			logger.Error("error looking up instance address", zap.Error(err))
+
 			c.AbortWithStatus(http.StatusInternalServerError)
 		}
 

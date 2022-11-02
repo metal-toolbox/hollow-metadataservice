@@ -75,8 +75,8 @@ type Router struct {
 func (r *Router) Routes(rg *gin.RouterGroup) {
 	setupValidator()
 
-	rg.GET(MetadataURI, middleware.IdentifyInstanceByIP(r.DB), r.instanceMetadataGet)
-	rg.GET(UserdataURI, middleware.IdentifyInstanceByIP(r.DB), r.instanceUserdataGet)
+	rg.GET(MetadataURI, middleware.IdentifyInstanceByIP(r.Logger, r.DB), r.instanceMetadataGet)
+	rg.GET(UserdataURI, middleware.IdentifyInstanceByIP(r.Logger, r.DB), r.instanceUserdataGet)
 
 	authMw := r.AuthMW
 	rg.POST(InternalMetadataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("metadata")), r.instanceMetadataSet)
