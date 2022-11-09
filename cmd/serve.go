@@ -108,7 +108,7 @@ func serve(ctx context.Context) {
 	ctx, otelshutdown := otelinit.InitOpenTelemetry(ctx, serviceName)
 	defer otelshutdown(ctx)
 
-	db := initDB(ctx)
+	db := initDB()
 
 	logger.Infow("starting metadata server", "address", viper.GetString("listen"))
 
@@ -142,7 +142,7 @@ func serve(ctx context.Context) {
 	}
 }
 
-func initDB(ctx context.Context) *sqlx.DB {
+func initDB() *sqlx.DB {
 	dbDriverName := "postgres"
 
 	tracerProvider := otel.GetTracerProvider()
