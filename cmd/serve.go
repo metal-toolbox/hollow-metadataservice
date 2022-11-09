@@ -6,9 +6,13 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/XSAM/otelsql"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/equinix-labs/otel-init-go/otelinit"
+	"github.com/jmoiron/sqlx"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/oauth2/clientcredentials"
 
 	"go.hollow.sh/toolbox/ginjwt"
@@ -21,6 +25,7 @@ const (
 	defaultDBMaxOpenConns    int           = 25
 	defaultDBMaxIdleConns    int           = 25
 	defaultDBConnMaxLifetime time.Duration = 5 * 60 * time.Second
+	serviceName                            = "metadata-service"
 )
 
 // serveCmd represents the serve command
@@ -36,19 +41,6 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().String("listen", "0.0.0.0:8000", "address on which to listen")
 	viperBindFlag("listen", serveCmd.Flags().Lookup("listen"))
-
-	// Tracing flags
-	serveCmd.Flags().Bool("tracing", false, "enable tracing support")
-	viperBindFlag("tracing.enabled", serveCmd.Flags().Lookup("tracing"))
-
-	serveCmd.Flags().String("tracing-provider", "jaeger", "tracing provider to use")
-	viperBindFlag("tracing.provider", serveCmd.Flags().Lookup("tracing-provider"))
-
-	serveCmd.Flags().String("tracing-endpoint", "", "endpoint where traces are sent")
-	viperBindFlag("tracing.endpoint", serveCmd.Flags().Lookup("tracing-endpoint"))
-
-	serveCmd.Flags().String("tracing-environment", "production", "environment value in traces")
-	viperBindFlag("tracing.environment", serveCmd.Flags().Lookup("tracing-environment"))
 
 	// DB flags
 	serveCmd.Flags().Int("db-conns-max-open", defaultDBMaxOpenConns, "max number of open database connections")
@@ -113,7 +105,10 @@ func init() {
 }
 
 func serve(ctx context.Context) {
-	db := initTracingAndDB()
+	ctx, otelshutdown := otelinit.InitOpenTelemetry(ctx, serviceName)
+	defer otelshutdown(ctx)
+
+	db := initDB(ctx)
 
 	logger.Infow("starting metadata server", "address", viper.GetString("listen"))
 
@@ -145,6 +140,25 @@ func serve(ctx context.Context) {
 	if err := hs.Run(); err != nil {
 		logger.Fatalw("failed starting metadata server", "error", err)
 	}
+}
+
+func initDB(ctx context.Context) *sqlx.DB {
+	dbDriverName := "postgres"
+
+	tracerProvider := otel.GetTracerProvider()
+
+	sqldb, err := otelsql.Open(dbDriverName, viper.GetString("db.uri"), otelsql.WithTracerProvider(tracerProvider))
+	if err != nil {
+		logger.Fatalw("failed to initialize database connection", "error", err)
+	}
+
+	db := sqlx.NewDb(sqldb, dbDriverName)
+
+	db.SetMaxOpenConns(viper.GetInt("db.connections.max_open"))
+	db.SetMaxIdleConns(viper.GetInt("db.connections.max_idel"))
+	db.SetConnMaxIdleTime(viper.GetDuration("db.connections.max_lifetime"))
+
+	return db
 }
 
 func getLookupClient(ctx context.Context) (*lookup.ServiceClient, error) {
