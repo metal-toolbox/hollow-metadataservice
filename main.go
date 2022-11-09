@@ -1,3 +1,4 @@
+// Package main the entrypoint to the metadata service application
 package main
 
 //go:generate sqlboiler crdb
