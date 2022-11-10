@@ -15,6 +15,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
@@ -32,7 +33,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.47.2
+          version: v1.50.1
           args: --timeout=5m
 
       - name: Run go tests for generated models code
