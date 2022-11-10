@@ -1,6 +1,6 @@
 module go.hollow.sh/metadataservice
 
-go 1.19
+go 1.18
 
 require (
 	github.com/XSAM/otelsql v0.17.0
