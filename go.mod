@@ -3,7 +3,6 @@ module go.hollow.sh/metadataservice
 go 1.19
 
 require (
-	github.com/XSAM/otelsql v0.17.0
 	github.com/cockroachdb/cockroach-go/v2 v2.2.16
 	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/friendsofgo/errors v0.9.2
@@ -34,6 +33,7 @@ require (
 )
 
 require (
+	github.com/XSAM/otelsql v0.17.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect

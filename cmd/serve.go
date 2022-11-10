@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"text/template"
 
-	"github.com/XSAM/otelsql"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/jmoiron/sqlx"
 	"github.com/spf13/cobra"
@@ -14,7 +13,6 @@ import (
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.infratographer.com/x/crdbx"
 	"go.infratographer.com/x/otelx"
-	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2/clientcredentials"
 
@@ -148,22 +146,12 @@ func setupTracing(logger *zap.SugaredLogger) {
 func initDB() *sqlx.DB {
 	dbDriverName := "postgres"
 
-	tracerProvider := otel.GetTracerProvider()
-
-	sqldb, err := otelsql.Open(dbDriverName, config.AppConfig.CRDB.URI, otelsql.WithTracerProvider(tracerProvider))
+	sqldb, err := crdbx.NewDB(config.AppConfig.CRDB, config.AppConfig.Tracing.Enabled)
 	if err != nil {
 		logger.Fatalw("failed to initialize database connection", "error", err)
 	}
 
 	db := sqlx.NewDb(sqldb, dbDriverName)
-
-	if err := db.Ping(); err != nil {
-		logger.Fatalw("failed verifying database connection", "error", err)
-	}
-
-	db.SetMaxOpenConns(config.AppConfig.CRDB.Connections.MaxOpen)
-	db.SetMaxIdleConns(config.AppConfig.CRDB.Connections.MaxIdle)
-	db.SetConnMaxLifetime(config.AppConfig.CRDB.Connections.MaxLifetime)
 
 	return db
 }
