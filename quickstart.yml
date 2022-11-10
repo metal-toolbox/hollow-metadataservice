@@ -10,7 +10,7 @@ services:
         condition: service_completed_successfully
     environment:
       - METADATASERVICE_OIDC_ENABLED=false
-      - METADATASERVICE_DB_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable
+      - METADATASERVICE_CRDB_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -25,7 +25,7 @@ services:
       crdb:
         condition: service_healthy
     environment:
-      - METADATASERVICE_DB_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable
+      - METADATASERVICE_CRDB_URI=postgresql://root@crdb:26257/defaultdb?sslmode=disable
     restart: on-failure
     networks:
       - metadataservice

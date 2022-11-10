@@ -49,9 +49,9 @@ docker-clean:
 dev-database: | vendor
 	@cockroach sql --insecure -e "drop database if exists metadataservice"
 	@cockroach sql --insecure -e "create database metadataservice"
-	@METADATASERVICE_DB_URI="${DEV_DB}" go run main.go migrate up
+	@METADATASERVICE_CRDB_URI="${DEV_DB}" go run main.go migrate up
 
 test-database: | vendor
 	@cockroach sql --insecure -e "drop database if exists metadataservice_test"
 	@cockroach sql --insecure -e "create database metadataservice_test"
-	@METADATASERVICE_DB_URI="${TEST_DB}" go run main.go migrate up
+	@METADATASERVICE_CRDB_URI="${TEST_DB}" go run main.go migrate up
