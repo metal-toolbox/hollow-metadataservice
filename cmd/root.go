@@ -10,6 +10,8 @@ import (
 	"go.uber.org/zap"
 
 	homedir "github.com/mitchellh/go-homedir"
+
+	"go.hollow.sh/metadataservice/internal/config"
 )
 
 var (
@@ -38,9 +40,6 @@ func init() {
 
 	rootCmd.PersistentFlags().Bool("pretty", false, "enable pretty (human readable) logging output")
 	viperBindFlag("logging.pretty", rootCmd.PersistentFlags().Lookup("pretty"))
-
-	rootCmd.PersistentFlags().String("db-uri", "postgresql://root@localhost:26257/metadataservice?sslmode=disable", "URI for database connection")
-	viperBindFlag("db.uri", rootCmd.PersistentFlags().Lookup("db-uri"))
 }
 
 // initConfig reads in config file and ENV variables if set
@@ -67,6 +66,8 @@ func initConfig() {
 
 	setupLogging()
 
+	setupAppConfig()
+
 	if err == nil {
 		logger.Infow("using config file", "file", viper.ConfigFileUsed())
 	}
@@ -91,6 +92,16 @@ func setupLogging() {
 
 	logger = l.Sugar().With("app", "metadataservice", "version", version.Version())
 	defer logger.Sync() //nolint:errcheck
+}
+
+// setupAppConfig loads our config.AppConfig struct with the values bound by
+// viper. Then, anywhere we need these values, we can just return to AppConfig
+// instead of performing viper.GetString(...), viper.GetBool(...), etc.
+func setupAppConfig() {
+	err := viper.Unmarshal(&config.AppConfig)
+	if err != nil {
+		logger.Fatalw("unable to decode app config", "error", err)
+	}
 }
 
 // viperBindFlag provides a wrapper around the viper bindings that handles error checks

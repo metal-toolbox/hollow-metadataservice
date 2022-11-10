@@ -5,9 +5,9 @@ import (
 	_ "github.com/lib/pq"                                   // Register the Postgres driver.
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	dbm "go.hollow.sh/metadataservice/db"
+	"go.hollow.sh/metadataservice/internal/config"
 )
 
 // migrateCmd represents the command used to migrate the database
@@ -40,7 +40,7 @@ func init() {
 }
 
 func migrate(command string, args []string) {
-	db, err := goose.OpenDBWithDriver("postgres", viper.GetString("db.uri"))
+	db, err := goose.OpenDBWithDriver("postgres", config.AppConfig.CRDB.URI)
 	if err != nil {
 		logger.Fatalw("failed to open DB", "error", err)
 	}
