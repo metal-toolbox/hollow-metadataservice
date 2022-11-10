@@ -1,16 +1,21 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"go.hollow.sh/toolbox/version"
+	"go.infratographer.com/x/goosex"
+	"go.infratographer.com/x/loggingx"
+	"go.infratographer.com/x/versionx"
 	"go.uber.org/zap"
 
 	homedir "github.com/mitchellh/go-homedir"
 
+	dbm "go.hollow.sh/metadataservice/db"
 	"go.hollow.sh/metadataservice/internal/config"
 )
 
@@ -35,11 +40,18 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.metadataservice.yml")
 
-	rootCmd.PersistentFlags().Bool("debug", false, "enable debug logging")
-	viperBindFlag("logging.debug", rootCmd.PersistentFlags().Lookup("debug"))
+	// Logging flags
+	loggingx.MustViperFlags(rootCmd.PersistentFlags())
 
-	rootCmd.PersistentFlags().Bool("pretty", false, "enable pretty (human readable) logging output")
-	viperBindFlag("logging.pretty", rootCmd.PersistentFlags().Lookup("pretty"))
+	// Register version command
+	versionx.RegisterCobraCommand(rootCmd, func() { versionx.PrintVersion(logger) })
+
+	// Setup migrate command
+	goosex.RegisterCobraCommand(rootCmd, func() {
+		goosex.SetBaseFS(dbm.Migrations)
+		goosex.SetDBURI(config.AppConfig.CRDB.URI)
+		goosex.SetLogger(logger)
+	})
 }
 
 // initConfig reads in config file and ENV variables if set
@@ -64,34 +76,14 @@ func initConfig() {
 	// If a config file is found, reat it in.
 	err := viper.ReadInConfig()
 
-	setupLogging()
-
 	setupAppConfig()
+
+	// setupLogging()
+	logger = loggingx.InitLogger("metadataservice", config.AppConfig.Logging)
 
 	if err == nil {
 		logger.Infow("using config file", "file", viper.ConfigFileUsed())
 	}
-}
-
-func setupLogging() {
-	cfg := zap.NewProductionConfig()
-	if viper.GetBool("logging.pretty") {
-		cfg = zap.NewDevelopmentConfig()
-	}
-
-	if viper.GetBool("logging.debug") {
-		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-	} else {
-		cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	}
-
-	l, err := cfg.Build()
-	if err != nil {
-		panic(err)
-	}
-
-	logger = l.Sugar().With("app", "metadataservice", "version", version.Version())
-	defer logger.Sync() //nolint:errcheck
 }
 
 // setupAppConfig loads our config.AppConfig struct with the values bound by
@@ -100,7 +92,8 @@ func setupLogging() {
 func setupAppConfig() {
 	err := viper.Unmarshal(&config.AppConfig)
 	if err != nil {
-		logger.Fatalw("unable to decode app config", "error", err)
+		fmt.Printf("unable to decode app config: %s", err)
+		os.Exit(1)
 	}
 }
 
