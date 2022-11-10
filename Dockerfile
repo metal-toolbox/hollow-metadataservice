@@ -1,4 +1,4 @@
-FROM alpine:20220715 as alpine
+FROM alpine:20221110 as alpine
 RUN apk add --no-cache ca-certificates
 
 FROM scratch
