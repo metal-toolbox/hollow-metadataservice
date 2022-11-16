@@ -9,6 +9,7 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/types"
 	"go.uber.org/zap"
 
+	"go.hollow.sh/metadataservice/internal/middleware"
 	"go.hollow.sh/metadataservice/internal/models"
 	"go.hollow.sh/metadataservice/internal/upserter"
 )
@@ -37,8 +38,11 @@ func MetadataSyncByID(ctx context.Context, db *sqlx.DB, logger *zap.Logger, clie
 		return nil, errNilClient
 	}
 
+	middleware.MetricMetadataLookupRequestCount.Inc()
+
 	resp, err := client.GetMetadataByID(ctx, id)
 	if err != nil {
+		middleware.MetricLookupErrors.Inc()
 		return nil, err
 	}
 
@@ -54,8 +58,11 @@ func MetadataSyncByIP(ctx context.Context, db *sqlx.DB, logger *zap.Logger, clie
 		return nil, errNilClient
 	}
 
+	middleware.MetricMetadataLookupRequestCount.Inc()
+
 	resp, err := client.GetMetadataByIP(ctx, ipAddress)
 	if err != nil {
+		middleware.MetricLookupErrors.Inc()
 		return nil, err
 	}
 
@@ -71,8 +78,11 @@ func UserdataSyncByID(ctx context.Context, db *sqlx.DB, logger *zap.Logger, clie
 		return nil, errNilClient
 	}
 
+	middleware.MetricUserdataLookupRequestCount.Inc()
+
 	resp, err := client.GetUserdataByID(ctx, id)
 	if err != nil {
+		middleware.MetricUserdataLookupErrors.Inc()
 		return nil, err
 	}
 
@@ -88,8 +98,11 @@ func UserdataSyncByIP(ctx context.Context, db *sqlx.DB, logger *zap.Logger, clie
 		return nil, errNilClient
 	}
 
+	middleware.MetricUserdataLookupRequestCount.Inc()
+
 	resp, err := client.GetUserdataByID(ctx, ipAddress)
 	if err != nil {
+		middleware.MetricUserdataLookupErrors.Inc()
 		return nil, err
 	}
 
@@ -104,8 +117,11 @@ func storeMetadata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, lookupR
 
 	err := upserter.UpsertMetadata(ctx, db, logger, lookupResp.ID, lookupResp.IPAddresses, newInstanceMetadata)
 	if err != nil {
+		middleware.MetricMetadataStoreErrors.Inc()
 		return nil, err
 	}
+
+	middleware.MetricMetadataInsertsCount.Inc()
 
 	return newInstanceMetadata, nil
 }
@@ -118,8 +134,11 @@ func storeUserdata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, lookupR
 
 	err := upserter.UpsertUserdata(ctx, db, logger, lookupResp.ID, lookupResp.IPAddresses, newInstanceUserdata)
 	if err != nil {
+		middleware.MetricUserdataStoreErrors.Inc()
 		return nil, err
 	}
+
+	middleware.MetricUserdataInsertsCount.Inc()
 
 	return newInstanceUserdata, nil
 }
