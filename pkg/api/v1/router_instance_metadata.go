@@ -9,6 +9,7 @@ import (
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/types"
 
+	"go.hollow.sh/metadataservice/internal/middleware"
 	"go.hollow.sh/metadataservice/internal/models"
 	"go.hollow.sh/metadataservice/internal/upserter"
 )
@@ -384,6 +385,8 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 
 		return
 	}
+
+	middleware.MetricDeletionsCount.Inc()
 
 	c.Status(http.StatusOK)
 }

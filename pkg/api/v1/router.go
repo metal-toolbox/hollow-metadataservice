@@ -95,6 +95,7 @@ func (r *Router) getMetadata(c *gin.Context) (*models.InstanceMetadatum, error) 
 		// We couldn't match the request IP to an instance ID that the metadata
 		// service already knows about. So we'll try to get it from the upstream
 		// lookup service (if it's enabled and configured).
+		middleware.MetricMetadataCacheMiss.Inc()
 		requestIP := c.GetString(middleware.ContextKeyRequestorIP)
 
 		if r.LookupEnabled && r.LookupClient != nil {
@@ -116,6 +117,8 @@ func (r *Router) getMetadata(c *gin.Context) (*models.InstanceMetadatum, error) 
 	if err != nil && errors.Is(err, sql.ErrNoRows) {
 		// We couldn't find an instance_metadata row for this instance ID. Try
 		// to fetch it from the upstream lookup service (if enabled and configured)
+		middleware.MetricMetadataCacheMiss.Inc()
+
 		if r.LookupEnabled && r.LookupClient != nil {
 			metadata, err = lookup.MetadataSyncByID(c.Request.Context(), r.DB, r.Logger, r.LookupClient, instanceID)
 			if err != nil && errors.Is(err, lookup.ErrNotFound) {
@@ -128,6 +131,8 @@ func (r *Router) getMetadata(c *gin.Context) (*models.InstanceMetadatum, error) 
 		return nil, errNotFound
 	}
 
+	middleware.MetricMetadataCacheHit.Inc()
+
 	return metadata, err
 }
 
@@ -138,6 +143,7 @@ func (r *Router) getUserdata(c *gin.Context) (*models.InstanceUserdatum, error) 
 		// We couldn't match the request IP to an instance ID that the metadata
 		// service already knows about. So we'll try to get it from the upstream
 		// lookup service (if it's enabled and configured).
+		middleware.MetricUserdataCacheMiss.Inc()
 		requestIP := c.GetString(middleware.ContextKeyRequestorIP)
 
 		if r.LookupEnabled && r.LookupClient != nil {
@@ -170,6 +176,8 @@ func (r *Router) getUserdata(c *gin.Context) (*models.InstanceUserdatum, error) 
 
 		return nil, errNotFound
 	}
+
+	middleware.MetricUserdataCacheHit.Inc()
 
 	return userdata, err
 }
