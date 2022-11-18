@@ -90,6 +90,9 @@ func init() {
 	serveCmd.Flags().StringSlice("gin-trusted-proxies", []string{}, "Comma-separated list of IP addresses, like `\"192.168.1.1,10.0.0.1\"`. When running the Metadata Service behind something like a reverse proxy or load balancer, you may need to set this so that gin's `(*Context).ClientIP()` method returns a value provided by the proxy in a header like `X-Forwarded-For`.")
 	viperBindFlag("gin.trustedproxies", serveCmd.Flags().Lookup("gin-trusted-proxies"))
 
+	serveCmd.Flags().String("api-url", "", "An optional golang template string used to build a URL which instances can use as a reference to the Metadata Service API itself. This template string will be evaluated against the instance metadata, and appended as an 'api_url' field on the metadata document served to instances. If no template string is specified, the 'api_url' field will not be added to the metadata document.")
+	viperBindFlag("metadata.api_url", serveCmd.Flags().Lookup("api-url"))
+
 	serveCmd.Flags().String("phone-home-url", "", "An optional golang template string used to build a URL which instances can use as part of a 'phone home' process. This template string will be evaluated against the instance metadata, and appended as a 'phone_home_url' field on the metadata document served to instances. If no template string is specified, the 'phone_home_url' field will not be added to the metadata document.")
 	viperBindFlag("metadata.phone_home_url", serveCmd.Flags().Lookup("phone-home-url"))
 
@@ -180,8 +183,18 @@ func getLookupClient(ctx context.Context) (*lookup.ServiceClient, error) {
 func getTemplateFields() map[string]template.Template {
 	templates := make(map[string]template.Template)
 
+	apiURL := viper.GetString("metadata.api_url")
 	phoneHomeURL := viper.GetString("metadata.phone_home_url")
 	userStateURL := viper.GetString("metadata.user_state_url")
+
+	if len(apiURL) > 0 {
+		apiURLTempl, err := template.New("apiURL").Parse(apiURL)
+		if err != nil {
+			logger.Fatalf("failed to parse API URL template (%s)", apiURL, "error", err)
+		}
+
+		templates["api_url"] = *apiURLTempl
+	}
 
 	if len(phoneHomeURL) > 0 {
 		phoneHomeTempl, err := template.New("phoneHomeURL").Parse(phoneHomeURL)
