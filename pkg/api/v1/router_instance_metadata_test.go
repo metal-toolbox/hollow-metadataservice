@@ -116,6 +116,11 @@ func TestGetMetadataByIP(t *testing.T) {
 }
 
 func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
+	apiURLTmpl, err := template.New("apiURL").Parse("https://metadata-service")
+	if err != nil {
+		t.Error(err)
+	}
+
 	phoneHomeTmpl, err := template.New("phoneHomeURL").Parse("https://{{.facility}}.phone.home/phone-home")
 	if err != nil {
 		t.Error(err)
@@ -145,6 +150,7 @@ func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
 
 	config := TestServerConfig{
 		TemplateFields: map[string]template.Template{
+			"api_url":        *apiURLTmpl,
 			"phone_home_url": *phoneHomeTmpl,
 			"user_state_url": *userStateTmpl,
 			"missing_field":  *missingFieldTmpl,
@@ -171,6 +177,7 @@ func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	assert.Equal(t, "https://metadata-service", resultMap["api_url"])
 	assert.Equal(t, "https://da11.phone.home/phone-home", resultMap["phone_home_url"])
 	assert.Equal(t, fmt.Sprintf("https://da.user.state/events/%s", dbtools.FixtureInstanceA.InstanceID), resultMap["user_state_url"])
 	assert.Equal(t, "instance-a", resultMap["hostname"])
