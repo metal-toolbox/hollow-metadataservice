@@ -91,15 +91,15 @@ func (r *Router) instanceEc2MetadataItemGet(c *gin.Context) {
 	}
 
 	if subPath, ok := c.Params.Get("subpath"); ok {
+		if result, ok := metadata.GetItem(subPath); ok {
+			c.String(http.StatusOK, strings.Join(result, "\n"))
+			return
+		}
+	} else {
 		// If subPath is empty, we're just hitting the EC2 endpoint with a trailing
 		// slash, so perform the same operation as in instanceEc2MetadataGet()
 		if subPath == "" {
 			c.String(http.StatusOK, strings.Join(metadata.ItemNames(), "\n"))
-			return
-		}
-
-		if result, ok := metadata.GetItem(subPath); ok {
-			c.String(http.StatusOK, strings.Join(result, "\n"))
 			return
 		}
 	}

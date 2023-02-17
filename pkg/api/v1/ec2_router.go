@@ -50,6 +50,12 @@ func GetEc2MetadataItemPath(itemPath string) string {
 	return path.Join(V20090404URI, fmt.Sprintf("%s/%s", Ec2MetadataURI, trimmed))
 }
 
+// GetEc2MetadataItemPathWithoutTrim is used to test routing edge cases where
+// the trailing '/' is kept
+func GetEc2MetadataItemPathWithoutTrim(itemPath string) string {
+	return path.Join(V20090404URI, fmt.Sprintf("%s/%s", Ec2MetadataURI, itemPath))
+}
+
 // GetEc2UserdataPath returns the path used to fetch ec2-style userdata
 func GetEc2UserdataPath() string {
 	return path.Join(V20090404URI, Ec2UserdataURI)
