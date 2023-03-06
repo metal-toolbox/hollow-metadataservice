@@ -33,6 +33,8 @@ jobs:
       -
         name: install cosign
         uses: sigstore/cosign-installer@main
+        with:
+          cosign-release: 'v1.13.1'
       -
         uses: anchore/sbom-action/download-syft@v0.13.1
       -
@@ -40,7 +42,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
-          args: release --rm-dist
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COSIGN_EXPERIMENTAL: 1
