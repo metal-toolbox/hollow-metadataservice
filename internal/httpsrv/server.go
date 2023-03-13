@@ -35,8 +35,8 @@ type Server struct {
 }
 
 var (
-	readTimeout  = 10 * time.Second
-	writeTimeout = 20 * time.Second
+	readTimeout  = 30 * time.Second
+	writeTimeout = 30 * time.Second
 	corsMaxAge   = 12 * time.Hour
 )
 
