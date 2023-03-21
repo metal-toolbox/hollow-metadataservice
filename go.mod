@@ -3,7 +3,7 @@ module go.hollow.sh/metadataservice
 go 1.20
 
 require (
-	github.com/cockroachdb/cockroach-go/v2 v2.2.17
+	github.com/cockroachdb/cockroach-go/v2 v2.3.3
 	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/friendsofgo/errors v0.9.2
 	github.com/gin-contrib/cors v1.4.0
