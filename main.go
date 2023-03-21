@@ -4,6 +4,8 @@ package main
 //go:generate sqlboiler crdb
 
 import (
+	_ "go.uber.org/automaxprocs"
+
 	"go.hollow.sh/metadataservice/cmd"
 )
 
