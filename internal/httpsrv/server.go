@@ -1,8 +1,12 @@
 package httpsrv
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -23,21 +27,23 @@ import (
 
 // Server contains the HTTP server configuration
 type Server struct {
-	Logger         *zap.Logger
-	Listen         string
-	Debug          bool
-	DB             *sqlx.DB
-	AuthConfig     ginjwt.AuthConfig
-	TrustedProxies []string
-	LookupEnabled  bool
-	LookupClient   lookup.Client
-	TemplateFields map[string]template.Template
+	Logger          *zap.Logger
+	Listen          string
+	Debug           bool
+	DB              *sqlx.DB
+	AuthConfig      ginjwt.AuthConfig
+	TrustedProxies  []string
+	LookupEnabled   bool
+	LookupClient    lookup.Client
+	TemplateFields  map[string]template.Template
+	ShutdownTimeout time.Duration
 }
 
 var (
-	readTimeout  = 10 * time.Second
-	writeTimeout = 20 * time.Second
-	corsMaxAge   = 12 * time.Hour
+	readTimeout     = 10 * time.Second
+	writeTimeout    = 20 * time.Second
+	corsMaxAge      = 12 * time.Hour
+	shutdownTimeout = 10 * time.Second
 )
 
 func (s *Server) setup() *gin.Engine {
@@ -146,12 +152,55 @@ func (s *Server) NewServer() *http.Server {
 }
 
 // Run will start the server listening on the specified address
-func (s *Server) Run() error {
+func (s *Server) Run(ctx context.Context) error {
 	if !s.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	return s.setup().Run(s.Listen)
+	srv := &http.Server{
+		Addr:    s.Listen,
+		Handler: s.setup(),
+	}
+
+	exit := make(chan error, 1)
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			exit <- err
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-exit:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			s.Logger.Error("failed to listen", zap.Error(err))
+		}
+
+		return err
+	case <-quit:
+		s.Logger.Warn("server shutting down")
+	}
+
+	timeout := shutdownTimeout
+
+	if s.ShutdownTimeout != 0 {
+		timeout = s.ShutdownTimeout
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		s.Logger.Error("forcing server shutdown")
+
+		return err
+	}
+
+	return nil
 }
 
 // livenessCheck ensures that the server is up and responding
