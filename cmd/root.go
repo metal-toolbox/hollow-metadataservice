@@ -41,7 +41,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.metadataservice.yml")
 
 	// Logging flags
-	loggingx.MustViperFlags(rootCmd.PersistentFlags())
+	loggingx.MustViperFlags(viper.GetViper(), rootCmd.PersistentFlags())
 
 	// Register version command
 	versionx.RegisterCobraCommand(rootCmd, func() { versionx.PrintVersion(logger) })
