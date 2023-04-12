@@ -623,6 +623,12 @@ func TestGetMetadataInternal(t *testing.T) {
 			"",
 		},
 		{
+			"invalid ID",
+			"bad-id",
+			http.StatusBadRequest,
+			"",
+		},
+		{
 			"Instance A",
 			dbtools.FixtureInstanceA.InstanceID,
 			http.StatusOK,

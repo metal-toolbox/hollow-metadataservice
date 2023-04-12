@@ -87,10 +87,11 @@ func (r *Router) instanceMetadataGet(c *gin.Context) {
 // which instances the metadata service already knows about, and which
 // instances may still need their metadata pushed to the service.
 func (r *Router) instanceMetadataGetInternal(c *gin.Context) {
-	instanceID, ok := c.Params.Get("instance-id")
+	instanceID, err := getUUIDParam(c, "instance-id")
 
-	if !ok || instanceID == "" {
-		notFoundResponse(c)
+	if err != nil {
+		invalidUUIDResponse(c, err)
+
 		return
 	}
 
@@ -140,10 +141,11 @@ func (r *Router) instanceUserdataGet(c *gin.Context) {
 // which instances the userdata service already knows about, and which
 // instances may still need their userdata pushed to the service.
 func (r *Router) instanceUserdataGetInternal(c *gin.Context) {
-	instanceID, ok := c.Params.Get("instance-id")
+	instanceID, err := getUUIDParam(c, "instance-id")
 
-	if !ok || instanceID == "" {
-		notFoundResponse(c)
+	if err != nil {
+		invalidUUIDResponse(c, err)
+
 		return
 	}
 
@@ -240,10 +242,11 @@ func (r *Router) instanceMetadataDelete(c *gin.Context) {
 	// When deleting metadata for an instance, we need to check if there is
 	// userdata stored for the instance. If there is not, we should go ahead and
 	// also delete the associated instance_ip_addresses rows.
-	instanceID, ok := c.Params.Get("instance-id")
+	instanceID, err := getUUIDParam(c, "instance-id")
 
-	if !ok || instanceID == "" {
-		notFoundResponse(c)
+	if err != nil {
+		invalidUUIDResponse(c, err)
+
 		return
 	}
 
@@ -261,10 +264,11 @@ func (r *Router) instanceUserdataDelete(c *gin.Context) {
 	// When deleting userdata for an instance, we need to check if there is
 	// metadata stored for the instance. If there is not, we should go ahead and
 	// also delete the associated instance_ip_addresses rows.
-	instanceID, ok := c.Params.Get("instance-id")
+	instanceID, err := getUUIDParam(c, "instance-id")
 
-	if !ok || instanceID == "" {
-		notFoundResponse(c)
+	if err != nil {
+		invalidUUIDResponse(c, err)
+
 		return
 	}
 

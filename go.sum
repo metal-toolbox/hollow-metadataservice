@@ -642,8 +642,6 @@ go.etcd.io/etcd/api/v3 v3.5.4/go.mod h1:5GB2vv4A4AOn3yk7MftYGHkUfGtDHnEraIjym4dY
 go.etcd.io/etcd/client/pkg/v3 v3.5.4/go.mod h1:IJHfcCEKxYu1Os13ZdwCwIUTUVGYTSAM3YSwc9/Ac1g=
 go.etcd.io/etcd/client/v2 v2.305.4/go.mod h1:Ud+VUwIi9/uQHOMA+4ekToJ12lTxlv0zB/+DHwTGEbU=
 go.etcd.io/etcd/client/v3 v3.5.4/go.mod h1:ZaRkVgBZC+L+dLCjTcF1hRXpgZXQPOvnA/Ak/gq3kiY=
-go.hollow.sh/toolbox v0.4.1 h1:4ANXNRybTyLd0T/3+ePXp9PAnr+j7HXQDTeiEAaup3k=
-go.hollow.sh/toolbox v0.4.1/go.mod h1:kroiA62wlwnxLixA+aWV9Oc26piRaAYMn+uqHYRRfdc=
 go.hollow.sh/toolbox v0.5.1 h1:x/tRdpgUFckT/pw6FySxUpSFxhw+Sc66zxbwlra+br4=
 go.hollow.sh/toolbox v0.5.1/go.mod h1:nfUNHobFfItossU5I0m7h2dw+0nY7rQt3DSUm2wGI5Q=
 go.infratographer.com/x v0.0.3 h1:7txN1iBq1Ts4XF6Ea/9/LWK2vpTeXKnh+DjdJ1OLHVQ=
