@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"net/url"
 	"text/template"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/jmoiron/sqlx"
@@ -23,6 +26,8 @@ import (
 
 const (
 	serviceName = "metadata-service"
+
+	shutdownGracePeriod = 10 * time.Second
 )
 
 // serveCmd represents the serve command
@@ -98,6 +103,9 @@ func init() {
 
 	serveCmd.Flags().String("user-state-url", "", "An optional golang template string used to build a URL which instances can use for sending user state events. This template string will be evaluated against the instance metadata, and appended as a 'user_state_url' field on the metadata document served to instances. If no template string is specified, the 'user_state_url' field will not be added to the metadata document.")
 	viperBindFlag("metadata.user_state_url", serveCmd.Flags().Lookup("user-state-url"))
+
+	serveCmd.Flags().Duration("shutdown-grace-period", shutdownGracePeriod, "The grace period for requests to finish before forcibly exiting.")
+	viperBindFlag("shutdown_grace_period", serveCmd.Flags().Lookup("shutdown-grace-period"))
 }
 
 func serve(ctx context.Context) {
@@ -126,14 +134,15 @@ func serve(ctx context.Context) {
 			RolesClaim:    viper.GetString("oidc.claims.roles"),
 			UsernameClaim: viper.GetString("oidc.claims.username"),
 		},
-		TrustedProxies: viper.GetStringSlice("gin.trustedproxies"),
-		LookupEnabled:  viper.GetBool("lookup.enabled"),
-		LookupClient:   lookupClient,
-		TemplateFields: getTemplateFields(),
+		TrustedProxies:  viper.GetStringSlice("gin.trustedproxies"),
+		LookupEnabled:   viper.GetBool("lookup.enabled"),
+		LookupClient:    lookupClient,
+		TemplateFields:  getTemplateFields(),
+		ShutdownTimeout: viper.GetDuration("shutdown_grace_period"),
 	}
 
-	if err := hs.Run(); err != nil {
-		logger.Fatalw("failed starting metadata server", "error", err)
+	if err := hs.Run(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Fatalw("failure running metadata server", "error", err)
 	}
 }
 
