@@ -35,6 +35,7 @@ jobs:
         with:
           version: v1.51.1
           args: --timeout=5m
+          skip-pkg-cache: true
 
       - name: Run go tests for generated models code
         run: go test -race ./internal/models

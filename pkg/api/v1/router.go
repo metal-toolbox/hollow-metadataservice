@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
 
@@ -59,6 +60,12 @@ var (
 	// - the item wasn't found in the DB
 	// - the item wasn't found in the upstream lookup service
 	errNotFound = errors.New("not found")
+
+	// ErrUUIDNotFound is returned when an expected uuid is not provided.
+	ErrUUIDNotFound = errors.New("uuid not found")
+
+	// ErrInvalidUUID is returned when an invalid uuid is provided.
+	ErrInvalidUUID = errors.New("invalid uuid")
 )
 
 // Router provides a router for the v1 API
@@ -262,4 +269,19 @@ func setupValidator() {
 		}
 		return name
 	})
+}
+
+// getUUIDParam parses and validates a UUID from the request params if the param is found
+func getUUIDParam(c *gin.Context, name string) (string, error) {
+	id, ok := c.Params.Get(name)
+
+	if !ok || id == "" {
+		return "", ErrUUIDNotFound
+	}
+
+	if _, err := uuid.Parse(id); err != nil {
+		return "", ErrInvalidUUID
+	}
+
+	return id, nil
 }
