@@ -455,6 +455,28 @@ func TestGetUserdataInternal(t *testing.T) {
 		},
 	}
 
+	// HEAD request tests
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodHead, v1api.GetInternalUserdataByIDPath(testcase.instanceID), nil)
+			router.ServeHTTP(w, req)
+			response := w.Result()
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+
+			if w.Code == 200 {
+				// HEAD responses should have an empty body, but set the Content-Length
+				// header to what the response body would otherwise be for a GET request
+				assert.Zero(t, w.Body.Len())
+				assert.Equal(t, int64(len(testcase.expectedBody)), response.ContentLength)
+				response.Body.Close()
+			}
+		})
+	}
+
+	// GET request tests
 	for _, testcase := range testCases {
 		t.Run(testcase.testName, func(t *testing.T) {
 			w := httptest.NewRecorder()

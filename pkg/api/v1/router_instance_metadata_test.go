@@ -599,6 +599,13 @@ func TestDeleteMetadata(t *testing.T) {
 	}
 }
 
+// metadataString is a helper function that ensures the db fixture string is marshaled
+// in a way that we can properly calculate its length for Content-Length comparisons
+func metadataString(metadata interface{}) string {
+	b, _ := json.Marshal(metadata)
+	return string(b)
+}
+
 func TestGetMetadataInternal(t *testing.T) {
 	router := *testHTTPServer(t)
 
@@ -632,25 +639,25 @@ func TestGetMetadataInternal(t *testing.T) {
 			"Instance A",
 			dbtools.FixtureInstanceA.InstanceID,
 			http.StatusOK,
-			dbtools.FixtureInstanceA.InstanceMetadata.Metadata.String(),
+			metadataString(dbtools.FixtureInstanceA.InstanceMetadata.Metadata),
 		},
 		{
 			"Instance B",
 			dbtools.FixtureInstanceB.InstanceID,
 			http.StatusOK,
-			dbtools.FixtureInstanceB.InstanceMetadata.Metadata.String(),
+			metadataString(dbtools.FixtureInstanceB.InstanceMetadata.Metadata),
 		},
 		{
 			"Instance C",
 			dbtools.FixtureInstanceC.InstanceID,
 			http.StatusOK,
-			dbtools.FixtureInstanceC.InstanceMetadata.Metadata.String(),
+			metadataString(dbtools.FixtureInstanceC.InstanceMetadata.Metadata),
 		},
 		{
 			"Instance D",
 			dbtools.FixtureInstanceD.InstanceID,
 			http.StatusOK,
-			dbtools.FixtureInstanceD.InstanceMetadata.Metadata.String(),
+			metadataString(dbtools.FixtureInstanceD.InstanceMetadata.Metadata),
 		},
 		// Instance E does not have metadata, so we'd expect a 404
 		{
@@ -668,6 +675,28 @@ func TestGetMetadataInternal(t *testing.T) {
 		},
 	}
 
+	// HEAD request tests
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodHead, v1api.GetInternalMetadataByIDPath(testcase.instanceID), nil)
+			router.ServeHTTP(w, req)
+			response := w.Result()
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+
+			if w.Code == 200 {
+				// HEAD responses should have an empty body, but set the Content-Length
+				// header to what the response body would otherwise be for a GET request
+				assert.Zero(t, w.Body.Len())
+				assert.Equal(t, int64(len(testcase.expectedBody)), response.ContentLength)
+				response.Body.Close()
+			}
+		})
+	}
+
+	// GET request tests
 	for _, testcase := range testCases {
 		t.Run(testcase.testName, func(t *testing.T) {
 			w := httptest.NewRecorder()
