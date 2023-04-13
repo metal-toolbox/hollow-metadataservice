@@ -89,6 +89,9 @@ func (r *Router) Routes(rg *gin.RouterGroup) {
 	rg.POST(InternalMetadataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("metadata")), r.instanceMetadataSet)
 	rg.POST(InternalUserdataURI, authMw.AuthRequired(), authMw.RequiredScopes(upsertScopes("userdata")), r.instanceUserdataSet)
 
+	rg.HEAD(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("metadata")), r.instanceMetadataExistsInternal)
+	rg.HEAD(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("userdata")), r.instanceUserdataExistsInternal)
+
 	rg.GET(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("metadata")), r.instanceMetadataGetInternal)
 	rg.GET(InternalUserdataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(readScopes("userdata")), r.instanceUserdataGetInternal)
 	rg.DELETE(InternalMetadataWithIDURI, authMw.AuthRequired(), authMw.RequiredScopes(deleteScopes("metadata")), r.instanceMetadataDelete)

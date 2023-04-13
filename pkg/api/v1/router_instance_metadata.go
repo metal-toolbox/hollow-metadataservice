@@ -2,8 +2,10 @@ package metadataservice
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/volatiletech/null/v8"
@@ -91,7 +93,6 @@ func (r *Router) instanceMetadataGetInternal(c *gin.Context) {
 
 	if err != nil {
 		invalidUUIDResponse(c, err)
-
 		return
 	}
 
@@ -114,6 +115,40 @@ func (r *Router) instanceMetadataGetInternal(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusOK, augmentedMetadata)
 	}
+}
+
+// instanceMetadataExistsInternal retrieves the requested instance ID from the
+// path and looks to see if the database has metadata recorded for that ID.
+// If so, it returns a 200. If not, it returns a 404. This can be used by an
+// authenticated external system to determine which instances the metadata
+// service already knows about with minimal network overhead.
+func (r *Router) instanceMetadataExistsInternal(c *gin.Context) {
+	instanceID, err := getUUIDParam(c, "instance-id")
+
+	if err != nil {
+		invalidUUIDResponse(c, err)
+		return
+	}
+
+	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	// HEAD request responses still set the Content-Length header to what it
+	// would be if we were returning the metadata
+	bytes, err := json.Marshal(metadata.Metadata)
+	if err != nil {
+		r.Logger.Warn("Error during json.Marshal() of metadata")
+		c.Status(http.StatusInternalServerError)
+
+		return
+	}
+
+	c.Writer.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
+	c.Status(http.StatusOK)
 }
 
 func (r *Router) instanceUserdataGet(c *gin.Context) {
@@ -145,7 +180,6 @@ func (r *Router) instanceUserdataGetInternal(c *gin.Context) {
 
 	if err != nil {
 		invalidUUIDResponse(c, err)
-
 		return
 	}
 
@@ -160,6 +194,32 @@ func (r *Router) instanceUserdataGetInternal(c *gin.Context) {
 	}
 
 	c.String(http.StatusOK, string(userdata.Userdata.Bytes))
+}
+
+// instanceUserdataExistsInternal retrieves the requested instance ID from the
+// path and looks to see if the database has userdata recorded for that ID.
+// If so, it returns a 200. If not, it will just return a 404. This can be use
+// by an authenticated external system to determine which instances the userdata
+// service already knows about with minimal network overhead.
+func (r *Router) instanceUserdataExistsInternal(c *gin.Context) {
+	instanceID, err := getUUIDParam(c, "instance-id")
+
+	if err != nil {
+		invalidUUIDResponse(c, err)
+		return
+	}
+
+	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
+
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	// HEAD request responses still set the Content-Length header to what it
+	// would be if we were returning the userdata
+	c.Writer.Header().Set("Content-Length", strconv.Itoa(len(userdata.Userdata.Bytes)))
+	c.Status(http.StatusOK)
 }
 
 // There's a few steps we need to perform when upserting both instance_metadata
