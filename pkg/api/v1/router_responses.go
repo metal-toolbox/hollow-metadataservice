@@ -48,13 +48,11 @@ func badRequestResponse(c *gin.Context, message string, err error) {
 
 func invalidUUIDResponse(c *gin.Context, err error) {
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrUUIDNotFound):
-			notFoundResponse(c)
-		case errors.Is(err, ErrInvalidUUID):
-			c.Error(err) //nolint:errcheck // no need to check this error.
-			c.AbortWithStatusJSON(http.StatusBadRequest, &ErrorResponse{Message: err.Error(), Errors: []string{err.Error()}})
+		if errors.Is(err, ErrInvalidUUID) {
+			c.Error(err) //nolint:errcheck // error response is not needed
 		}
+
+		notFoundResponse(c)
 	}
 
 	c.AbortWithStatusJSON(http.StatusInternalServerError, &ErrorResponse{Errors: []string{"internal server error"}})

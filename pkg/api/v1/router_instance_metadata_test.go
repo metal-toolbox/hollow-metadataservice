@@ -625,7 +625,7 @@ func TestGetMetadataInternal(t *testing.T) {
 		{
 			"invalid ID",
 			"bad-id",
-			http.StatusBadRequest,
+			http.StatusNotFound,
 			"",
 		},
 		{
