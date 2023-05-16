@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"go.hollow.sh/metadataservice/internal/models"
+	util "go.hollow.sh/metadataservice/utils"
 )
 
 // RecordUpserter is a function defined in by each metadata or userdata upsert
@@ -178,7 +179,8 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 
 	// Step 8
 	// Commit our transaction
-	if err := tx.Commit(); err != nil {
+	maxRetries := 5
+	if err := util.RetryDBCommit(tx, maxRetries, logger); err != nil {
 		txErr = true
 
 		return err

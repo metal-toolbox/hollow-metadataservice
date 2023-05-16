@@ -14,6 +14,7 @@ import (
 	"go.hollow.sh/metadataservice/internal/middleware"
 	"go.hollow.sh/metadataservice/internal/models"
 	"go.hollow.sh/metadataservice/internal/upserter"
+	util "go.hollow.sh/metadataservice/utils"
 )
 
 // UpsertMetadataRequest contains the fields for inserting or updating an
@@ -442,7 +443,8 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 
 	// Step 5
 	// commit our transaction
-	if err := tx.Commit(); err != nil {
+	maxRetries := 5
+	if err := util.RetryDBCommit(tx, maxRetries, r.Logger); err != nil {
 		txErr = true
 
 		dbErrorResponse(r.Logger, c, err)
