@@ -4,17 +4,19 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"math/rand"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/types"
 
 	"go.hollow.sh/metadataservice/internal/middleware"
 	"go.hollow.sh/metadataservice/internal/models"
 	"go.hollow.sh/metadataservice/internal/upserter"
-	util "go.hollow.sh/metadataservice/utils"
 )
 
 // UpsertMetadataRequest contains the fields for inserting or updating an
@@ -381,6 +383,37 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		deleteInstanceIPs = (metadata == nil)
 	}
 
+	deleteSuccess := false
+	maxDeleteRetries := viper.GetInt("crdb.max_retries")
+	dbRetryInterval := viper.GetDuration("crdb.retry_interval")
+
+	for i := 0; i <= maxDeleteRetries && !deleteSuccess; i++ {
+		err := performDeletions(c, r, instanceID, metadata, userdata, deleteMetadata, deleteUserdata, deleteInstanceIPs)
+		if err == nil {
+			deleteSuccess = true
+
+			if i > 0 {
+				r.Logger.Sugar().Info("DB delete transaction for instance ", instanceID, " successful on retry attempt #", i)
+			}
+		} else {
+			// Exponential backoff would be overkill here, but adding a bit of jitter
+			// to sleep a short time is reasonable
+			jitter := time.Duration(rand.Int63n(int64(dbRetryInterval)))
+			time.Sleep(jitter)
+		}
+	}
+
+	if !deleteSuccess {
+		r.Logger.Sugar().Warn("Deletion operation failed for instance ", instanceID, " even after ", maxDeleteRetries, " attempts")
+		return
+	}
+
+	middleware.MetricDeletionsCount.Inc()
+
+	c.Status(http.StatusOK)
+}
+
+func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *models.InstanceMetadatum, userdata *models.InstanceUserdatum, deleteMetadata bool, deleteUserdata bool, deleteInstanceIPs bool) error {
 	// Step 2
 	// Now that we've determined if we should delete the corresponding
 	// instance_ip_addresses rows, start a transaction, delete the passed-in
@@ -389,16 +422,20 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 
 	tx, err := r.DB.BeginTx(c, nil)
 	if err != nil {
+		r.Logger.Sugar().Warn("Something went wrong when running DB.BeginTX() for instance: ", instanceID)
 		dbErrorResponse(r.Logger, c, err)
-		return
+
+		return err
 	}
 
 	// If there's an error, we'll want to rollback the transaction.
 	defer func() {
 		if txErr {
+			r.Logger.Sugar().Warn("Rolling back delete transaction for instance", instanceID)
+
 			err := tx.Rollback()
 			if err != nil {
-				r.Logger.Sugar().Error("Could not rollback transaction", "error", err)
+				r.Logger.Sugar().Error("Could not rollback delete transaction for instance ", instanceID, "error", err)
 			}
 		}
 	}()
@@ -410,9 +447,10 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		if err != nil {
 			txErr = true
 
+			r.Logger.Sugar().Warn("Something went wrong when setting up metadata.Delete transaction for instance: ", instanceID)
 			dbErrorResponse(r.Logger, c, err)
 
-			return
+			return err
 		}
 	}
 
@@ -421,9 +459,10 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		if err != nil {
 			txErr = true
 
+			r.Logger.Sugar().Warn("Something went wrong when setting up userdata.Delete transaction for instance: ", instanceID)
 			dbErrorResponse(r.Logger, c, err)
 
-			return
+			return err
 		}
 	}
 
@@ -435,24 +474,21 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 		if err != nil {
 			txErr = true
 
+			r.Logger.Sugar().Warn("Something went wrong when setting up deleteInstanceIPs transaction for instance: ", instanceID)
 			dbErrorResponse(r.Logger, c, err)
 
-			return
+			return err
 		}
 	}
 
 	// Step 5
 	// commit our transaction
-	maxRetries := 5
-	if err := util.RetryDBCommit(tx, maxRetries, r.Logger); err != nil {
-		txErr = true
-
+	err = tx.Commit()
+	if err != nil {
 		dbErrorResponse(r.Logger, c, err)
 
-		return
+		return err
 	}
 
-	middleware.MetricDeletionsCount.Inc()
-
-	c.Status(http.StatusOK)
+	return nil
 }

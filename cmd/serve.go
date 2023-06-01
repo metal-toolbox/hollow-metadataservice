@@ -27,6 +27,9 @@ import (
 const (
 	serviceName = "metadata-service"
 
+	dbMaxRetriesDefault       = 5
+	dbRetryMaxIntervalDefault = 3 * time.Second
+
 	shutdownGracePeriod = 10 * time.Second
 )
 
@@ -49,6 +52,12 @@ func init() {
 
 	// DB flags
 	crdbx.MustViperFlags(viper.GetViper(), serveCmd.Flags())
+
+	serveCmd.Flags().Int("db-tx-max-retries", dbMaxRetriesDefault, "maximum number of times to retry failed db transactions")
+	viperBindFlag("crdb.max_retries", serveCmd.Flags().Lookup("db-tx-max-retries"))
+
+	serveCmd.Flags().Duration("db-retry-max-interval", dbRetryMaxIntervalDefault, "maximum number of seconds to sleep between db transaction retries (includes random jitter)")
+	viperBindFlag("crdb.retry_interval", serveCmd.Flags().Lookup("db-retry-max-interval"))
 
 	// OIDC Flags
 	serveCmd.Flags().Bool("oidc", true, "use oidc auth")

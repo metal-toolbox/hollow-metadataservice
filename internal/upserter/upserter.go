@@ -2,14 +2,16 @@ package upserter
 
 import (
 	"context"
+	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"go.uber.org/zap"
 
 	"go.hollow.sh/metadataservice/internal/models"
-	util "go.hollow.sh/metadataservice/utils"
 )
 
 // RecordUpserter is a function defined in by each metadata or userdata upsert
@@ -66,7 +68,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// Find "stale" InstanceIPAddress rows for this instance. That is, select
 	// rows from the instanceIPAddresses result which don't have a corresponding
 	// entry in the list of IP Addresses supplied in the call.
-	var staleInstanceIPAddreses models.InstanceIPAddressSlice
+	var staleInstanceIPAddresses models.InstanceIPAddressSlice
 
 	for _, instanceIP := range instanceIPAddresses {
 		found := false
@@ -79,7 +81,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 		}
 
 		if !found {
-			staleInstanceIPAddreses = append(staleInstanceIPAddreses, instanceIP)
+			staleInstanceIPAddresses = append(staleInstanceIPAddresses, instanceIP)
 		}
 	}
 
@@ -107,6 +109,35 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 		}
 	}
 
+	upsertSuccess := false
+	maxUpsertRetries := viper.GetInt("crdb.max_retries")
+	dbRetryInterval := viper.GetDuration("crdb.retry_interval")
+
+	for i := 0; i <= maxUpsertRetries && !upsertSuccess; i++ {
+		err = performUpsert(ctx, db, logger, id, upsertRecordFunc, conflictIPs, staleInstanceIPAddresses, newInstanceIPAddresses)
+		if err == nil {
+			upsertSuccess = true
+
+			if i > 0 {
+				logger.Sugar().Info("DB upsert transaction for instance ", id, "successful on retry attempt #", i)
+			}
+		} else {
+			// Exponential backoff would be overkill here, but adding a bit of jitter
+			// to sleep a short time is reasonable
+			jitter := time.Duration(rand.Int63n(int64(dbRetryInterval)))
+			time.Sleep(jitter)
+		}
+	}
+
+	if !upsertSuccess {
+		logger.Sugar().Error("Upsert operation failed for instance ", id, " even after ", maxUpsertRetries, " attempts")
+		return err
+	}
+
+	return nil
+}
+
+func performUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, upsertRecordFunc RecordUpserter, conflictIPs models.InstanceIPAddressSlice, staleInstanceIPAddresses models.InstanceIPAddressSlice, newInstanceIPAddresses models.InstanceIPAddressSlice) error {
 	// Step 3
 	// Kick off the DB transaction
 	txErr := false
@@ -119,9 +150,11 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// If there's an error, we'll want to roll back the transaction.
 	defer func() {
 		if txErr {
+			logger.Sugar().Warn("Rolling back upserter transaction for instance: ", id)
+
 			err := tx.Rollback()
 			if err != nil {
-				logger.Sugar().Error("Could not roll back transaction", "error", err)
+				logger.Sugar().Error("Could not roll back upserter transaction for instance ", id, "error", err)
 			}
 		}
 	}()
@@ -144,7 +177,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// Step 5
 	// Remove any "stale" instance_ip_addresses rows associated to the provided
 	// instnace_id but were not specified in the call.
-	for _, staleIP := range staleInstanceIPAddreses {
+	for _, staleIP := range staleInstanceIPAddresses {
 		_, err := staleIP.Delete(ctx, tx)
 		if err != nil {
 			txErr = true
@@ -179,8 +212,8 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 
 	// Step 8
 	// Commit our transaction
-	maxRetries := 5
-	if err := util.RetryDBCommit(tx, maxRetries, logger); err != nil {
+	err = tx.Commit()
+	if err != nil {
 		txErr = true
 
 		return err
