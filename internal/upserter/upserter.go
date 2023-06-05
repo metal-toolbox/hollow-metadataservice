@@ -216,6 +216,8 @@ func performUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id stri
 	if err != nil {
 		txErr = true
 
+		logger.Sugar().Warn("Unable to commit db upsert transaction: ", err)
+
 		return err
 	}
 
