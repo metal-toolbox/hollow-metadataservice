@@ -405,6 +405,9 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 
 	if !deleteSuccess {
 		r.Logger.Sugar().Warn("Deletion operation failed for instance ", instanceID, " even after ", maxDeleteRetries, " attempts")
+
+		dbErrorResponse(r.Logger, c, err)
+
 		return
 	}
 
@@ -431,7 +434,7 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 	// If there's an error, we'll want to rollback the transaction.
 	defer func() {
 		if txErr {
-			r.Logger.Sugar().Warn("Rolling back delete transaction for instance", instanceID)
+			r.Logger.Sugar().Warn("Rolling back delete transaction for instance: ", instanceID)
 
 			err := tx.Rollback()
 			if err != nil {
@@ -485,7 +488,9 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 	// commit our transaction
 	err = tx.Commit()
 	if err != nil {
-		dbErrorResponse(r.Logger, c, err)
+		txErr = true
+
+		r.Logger.Sugar().Warn("Unable to commit db delete transaction: ", err)
 
 		return err
 	}
