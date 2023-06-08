@@ -31,6 +31,8 @@ func UpsertMetadata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 		return metadata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("metadata"), boil.Infer())
 	}
 
+	logger.Sugar().Info("Starting metadata upsert for uuid: ", id)
+
 	return doUpsert(ctx, db, logger, id, ipAddresses, metadataUpserter)
 }
 
@@ -41,6 +43,8 @@ func UpsertUserdata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 	userdataUpserter := func(c context.Context, exec boil.ContextExecutor) error {
 		return userdata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("userdata"), boil.Infer())
 	}
+
+	logger.Sugar().Info("Starting userdata upsert for uuid: ", id)
 
 	return doUpsert(ctx, db, logger, id, ipAddresses, userdataUpserter)
 }
@@ -119,7 +123,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 			upsertSuccess = true
 
 			if i > 0 {
-				logger.Sugar().Info("DB upsert transaction for instance ", id, "successful on retry attempt #", i)
+				logger.Sugar().Info("DB upsert transaction for instance: ", id, " successful on retry attempt #", i)
 			}
 		} else {
 			// Exponential backoff would be overkill here, but adding a bit of jitter
@@ -130,7 +134,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	}
 
 	if !upsertSuccess {
-		logger.Sugar().Error("Upsert operation failed for instance ", id, " even after ", maxUpsertRetries, " attempts")
+		logger.Sugar().Error("Upsert operation failed for instance: ", id, " even after ", maxUpsertRetries, " attempts")
 		return err
 	}
 
@@ -154,7 +158,7 @@ func performUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id stri
 
 			err := tx.Rollback()
 			if err != nil {
-				logger.Sugar().Error("Could not roll back upserter transaction for instance ", id, "error", err)
+				logger.Sugar().Error("Could not roll back upserter transaction for instance: ", id, "Error: ", err)
 			}
 		}
 	}()
@@ -216,7 +220,7 @@ func performUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id stri
 	if err != nil {
 		txErr = true
 
-		logger.Sugar().Warn("Unable to commit db upsert transaction: ", err)
+		logger.Sugar().Warn("Unable to commit db upsert transaction for instance: ", id, "Error: ", err)
 
 		return err
 	}
