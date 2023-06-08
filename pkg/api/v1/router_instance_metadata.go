@@ -425,8 +425,7 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 
 	tx, err := r.DB.BeginTx(c, nil)
 	if err != nil {
-		r.Logger.Sugar().Warn("Something went wrong when running DB.BeginTX() for instance: ", instanceID)
-		dbErrorResponse(r.Logger, c, err)
+		r.Logger.Sugar().Warn("Something went wrong when running DB.BeginTX() for instance: ", instanceID, err)
 
 		return err
 	}
@@ -438,7 +437,7 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 
 			err := tx.Rollback()
 			if err != nil {
-				r.Logger.Sugar().Error("Could not rollback delete transaction for instance ", instanceID, "error", err)
+				r.Logger.Sugar().Error("Could not rollback delete transaction for instance: ", instanceID, "Error: ", err)
 			}
 		}
 	}()
@@ -450,8 +449,7 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 		if err != nil {
 			txErr = true
 
-			r.Logger.Sugar().Warn("Something went wrong when setting up metadata.Delete transaction for instance: ", instanceID)
-			dbErrorResponse(r.Logger, c, err)
+			r.Logger.Sugar().Warn("Something went wrong when setting up metadata.Delete transaction for instance: ", instanceID, "Error: ", err)
 
 			return err
 		}
@@ -462,8 +460,7 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 		if err != nil {
 			txErr = true
 
-			r.Logger.Sugar().Warn("Something went wrong when setting up userdata.Delete transaction for instance: ", instanceID)
-			dbErrorResponse(r.Logger, c, err)
+			r.Logger.Sugar().Warn("Something went wrong when setting up userdata.Delete transaction for instance: ", instanceID, "Error: ", err)
 
 			return err
 		}
@@ -477,8 +474,7 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 		if err != nil {
 			txErr = true
 
-			r.Logger.Sugar().Warn("Something went wrong when setting up deleteInstanceIPs transaction for instance: ", instanceID)
-			dbErrorResponse(r.Logger, c, err)
+			r.Logger.Sugar().Warn("Something went wrong when setting up deleteInstanceIPs transaction for instance: ", instanceID, "Error: ", err)
 
 			return err
 		}
@@ -490,7 +486,7 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 	if err != nil {
 		txErr = true
 
-		r.Logger.Sugar().Warn("Unable to commit db delete transaction: ", err)
+		r.Logger.Sugar().Warn("Unable to commit db delete transaction for instance: ", instanceID, "Error: ", err)
 
 		return err
 	}
