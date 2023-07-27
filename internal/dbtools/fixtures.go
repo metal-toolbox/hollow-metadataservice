@@ -126,11 +126,7 @@ func addFixtures() error {
 		return err
 	}
 
-	if err := setupInstanceF(ctx, testDB); err != nil {
-		return err
-	}
-
-	return nil
+	return setupInstanceF(ctx, testDB)
 }
 
 func setupInstanceA(ctx context.Context, db *sqlx.DB) error {
@@ -294,11 +290,7 @@ func setupInstanceC(ctx context.Context, db *sqlx.DB) error {
 		return err
 	}
 
-	if err := FixtureInstanceC.InstanceUserdata.Insert(ctx, db, boil.Infer()); err != nil {
-		return err
-	}
-
-	return nil
+	return FixtureInstanceC.InstanceUserdata.Insert(ctx, db, boil.Infer())
 }
 
 func setupInstanceD(ctx context.Context, db *sqlx.DB) error {
@@ -310,11 +302,7 @@ func setupInstanceD(ctx context.Context, db *sqlx.DB) error {
 		},
 	}
 
-	if err := FixtureInstanceD.InstanceMetadata.Insert(ctx, db, boil.Infer()); err != nil {
-		return err
-	}
-
-	return nil
+	return FixtureInstanceD.InstanceMetadata.Insert(ctx, db, boil.Infer())
 }
 
 func setupInstanceE(ctx context.Context, db *sqlx.DB) error {
@@ -356,11 +344,7 @@ func setupInstanceF(ctx context.Context, db *sqlx.DB) error {
 		},
 	}
 
-	if err := FixtureInstanceF.InstanceUserdata.Insert(ctx, db, boil.Infer()); err != nil {
-		return err
-	}
-
-	return nil
+	return FixtureInstanceF.InstanceUserdata.Insert(ctx, db, boil.Infer())
 }
 
 func getIPs(addresses []string) []string {
