@@ -661,6 +661,8 @@ go.etcd.io/etcd/client/v2 v2.305.4/go.mod h1:Ud+VUwIi9/uQHOMA+4ekToJ12lTxlv0zB/+
 go.etcd.io/etcd/client/v3 v3.5.4/go.mod h1:ZaRkVgBZC+L+dLCjTcF1hRXpgZXQPOvnA/Ak/gq3kiY=
 go.hollow.sh/toolbox v0.6.0 h1:4HTzh4gVPjJO1Q2FhNn2r4T+EaufTdJj49rUdasl3pA=
 go.hollow.sh/toolbox v0.6.0/go.mod h1:imcLT0oRHkDSlA5ENoXWDihQCOQitsP8zZrPSezFyig=
+go.hollow.sh/toolbox v0.6.1 h1:3E6JofImSCe63XayczbGfDxIXUjmBziMBBmbwook8WA=
+go.hollow.sh/toolbox v0.6.1/go.mod h1:nl+5RDDyYY/+wukOUzHHX2mOyWKRjlTOXUcGxny+tns=
 go.infratographer.com/x v0.3.0 h1:bvYxdbCBGSKASVG0Rl9sTi2LzrFwuJMBPkTu1wycyH4=
 go.infratographer.com/x v0.3.0/go.mod h1:w+uknSNnOrJlHiOdDPV08e5EpU47SwWXZ/vOVWBovPA=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
