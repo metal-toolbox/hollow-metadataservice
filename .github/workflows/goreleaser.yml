@@ -36,7 +36,7 @@ jobs:
         with:
           cosign-release: 'v1.13.1'
       -
-        uses: anchore/sbom-action/download-syft@v0.14.2
+        uses: anchore/sbom-action/download-syft@v0.14.3
       -
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
