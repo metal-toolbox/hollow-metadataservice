@@ -23,14 +23,13 @@ archives:
   -
     id: go
     format: tar.gz
-    name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
-    replacements:
-      amd64: 64bit
-      386: 32bit
-      arm: ARM
-      arm64: ARM64
-      darwin: macOS
-      linux: Linux
+    name_template: >-
+      {{ .ProjectName }}_
+      {{ .Version }}_
+      {{ title .Os }}-
+      {{- if eq .Arch "amd64" }}64bit
+      {{- else if eq .Arch "386" }}32bit
+      {{- else }}{{ .Arch }}{{ end }}
     files:
       - README.md
 
