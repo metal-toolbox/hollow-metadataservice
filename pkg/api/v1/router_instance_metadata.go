@@ -70,15 +70,6 @@ func (r *Router) instanceMetadataGet(c *gin.Context) {
 		return
 	}
 
-	// Treat metadata that's older then its TTL as non-existent
-	cacheTTL := viper.GetDuration("cache_ttl")
-	if metadata != nil && cacheTTL != 0 && metadata.UpdatedAt.Add(cacheTTL).Before(time.Now()) {
-		r.Logger.Sugar().Info("Metadata for ", metadata.ID, " is older than our TTL, ignoring")
-		notFoundResponse(c)
-
-		return
-	}
-
 	if metadata != nil {
 		augmentedMetadata, err := addTemplateFields(metadata.Metadata, r.TemplateFields)
 		if err != nil {
@@ -149,10 +140,10 @@ func (r *Router) instanceMetadataExistsInternal(c *gin.Context) {
 		return
 	}
 
-	// Treat metadata that's older then its TTL as non-existent
+	// Treat metadata that's older than our TTL as non-existent
 	cacheTTL := viper.GetDuration("cache_ttl")
 	if metadata != nil && cacheTTL != 0 && metadata.UpdatedAt.Add(cacheTTL).Before(time.Now()) {
-		r.Logger.Sugar().Info("Metadata for ", metadata.ID, " is older than our TTL, ignoring (exists check)")
+		r.Logger.Sugar().Info("TTL exceeded for instance ", metadata.ID, " not returning cached metadata (internal exists check)")
 		c.Status(http.StatusNotFound)
 
 		return
@@ -180,15 +171,6 @@ func (r *Router) instanceUserdataGet(c *gin.Context) {
 	// error result to the caller.
 	if err != nil && !errors.Is(err, errNotFound) {
 		dbErrorResponse(r.Logger, c, err)
-		return
-	}
-
-	// Treat userdata that's older then its TTL as non-existent
-	cacheTTL := viper.GetDuration("cache_ttl")
-	if userdata != nil && cacheTTL != 0 && userdata.UpdatedAt.Add(cacheTTL).Before(time.Now()) {
-		r.Logger.Sugar().Info("Userdata for ", userdata.ID, " is older than our TTL, ignoring")
-		notFoundResponse(c)
-
 		return
 	}
 
@@ -246,10 +228,10 @@ func (r *Router) instanceUserdataExistsInternal(c *gin.Context) {
 		return
 	}
 
-	// Treat userdata that's older then its TTL as non-existent
+	// Treat userdata that's older than our TTL as non-existent
 	cacheTTL := viper.GetDuration("cache_ttl")
 	if userdata != nil && cacheTTL != 0 && userdata.UpdatedAt.Add(cacheTTL).Before(time.Now()) {
-		r.Logger.Sugar().Info("Userdata for ", userdata.ID, " is older than our TTL, ignoring (exists check)")
+		r.Logger.Sugar().Info("TTL exceeded for instance ", userdata.ID, " not returning cached userdata (internal exists check)")
 		c.Status(http.StatusNotFound)
 
 		return

@@ -8,11 +8,13 @@ import (
 	"reflect"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"go.hollow.sh/toolbox/ginjwt"
@@ -120,11 +122,25 @@ func (r *Router) getMetadata(c *gin.Context) (*models.InstanceMetadatum, error) 
 		return nil, errNotFound
 	}
 
+	metadataNotFound := false
+
 	// We got an instance ID from the middleware, either because we could match
 	// the request IP to an ID, or the request itself provided the instance ID.
 	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
-
 	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		metadataNotFound = true
+	}
+
+	// Treat metadata that's older than our TTL as non-existent, to ensure we
+	// retrieve it using the lookup service
+	cacheTTL := viper.GetDuration("cache_ttl")
+	if err == nil && metadata != nil && cacheTTL != 0 && metadata.UpdatedAt.Add(cacheTTL).Before(time.Now()) {
+		r.Logger.Sugar().Info("TTL exceeded for instance ", metadata.ID, " not returning cached metadata")
+
+		metadataNotFound = true
+	}
+
+	if metadataNotFound {
 		// We couldn't find an instance_metadata row for this instance ID. Try
 		// to fetch it from the upstream lookup service (if enabled and configured)
 		middleware.MetricMetadataCacheMiss.Inc()
@@ -168,11 +184,25 @@ func (r *Router) getUserdata(c *gin.Context) (*models.InstanceUserdatum, error) 
 		return nil, errNotFound
 	}
 
+	userdataNotFound := false
+
 	// We got an instance ID from the middleware, either because we could match
 	// the request IP to an ID, or the request itself provided the instance ID.
 	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
-
 	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		userdataNotFound = true
+	}
+
+	// Treat userdata that's older than our TTL as non-existent, to ensure we
+	// retrieve it using the lookup service
+	cacheTTL := viper.GetDuration("cache_ttl")
+	if err == nil && userdata != nil && cacheTTL != 0 && userdata.UpdatedAt.Add(cacheTTL).Before(time.Now()) {
+		r.Logger.Sugar().Info("TTL exceeded for instance ", userdata.ID, " not returning cached userdata")
+
+		userdataNotFound = true
+	}
+
+	if userdataNotFound {
 		// We couldn't find an instance_metadata row for this instance ID. Try
 		// to fetch it from the upstream lookup service (if enabled and configured)
 		if r.LookupEnabled && r.LookupClient != nil {

@@ -10,7 +10,9 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
+	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 
 	"go.hollow.sh/metadataservice/internal/dbtools"
@@ -475,6 +477,29 @@ func TestGetUserdataInternal(t *testing.T) {
 			}
 		})
 	}
+
+	// Verify cache TTL settings are honored by setting the TTL to -1 second so we can avoid having to sleep
+	viper.Set("cache_ttl", -time.Second)
+
+	// Now our HEAD requests should behave as if cached userdata no longer exists
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodHead, v1api.GetInternalUserdataByIDPath(testcase.instanceID), nil)
+			router.ServeHTTP(w, req)
+
+			expectedStatus := testcase.expectedStatus
+			if expectedStatus == http.StatusOK {
+				// Flip the expected 200 responses to 404s
+				expectedStatus = http.StatusNotFound
+			}
+			assert.Equal(t, expectedStatus, w.Code)
+		})
+	}
+
+	// Disable cache for remaining tests
+	viper.Set("cache_ttl", 0)
 
 	// GET request tests
 	for _, testcase := range testCases {
