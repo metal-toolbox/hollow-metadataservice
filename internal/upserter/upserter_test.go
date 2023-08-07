@@ -236,7 +236,7 @@ func TestUpsertUserdataRemovesStaleInstanceIPAddressesRows(t *testing.T) {
 		Userdata: null.NewBytes([]byte(instanceUserdata1), true),
 	}
 
-	// Insert the metadata record
+	// Insert the userdata record
 	err := upserter.UpsertUserdata(context.TODO(), testDB, zap.NewNop(), instanceID, instanceIPs, &userdataInsert)
 	assert.Nil(t, err)
 
@@ -248,7 +248,7 @@ func TestUpsertUserdataRemovesStaleInstanceIPAddressesRows(t *testing.T) {
 
 	assert.Equal(t, 2, len(instanceIPAddresses))
 
-	// Update the metadata record
+	// Update the userdata record
 	newIPs := instanceIPs[:1]
 	err = upserter.UpsertUserdata(context.TODO(), testDB, zap.NewNop(), instanceID, newIPs, &userdataUpdate)
 	assert.Nil(t, err)
@@ -260,6 +260,76 @@ func TestUpsertUserdataRemovesStaleInstanceIPAddressesRows(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, len(instanceIPAddresses))
+}
+
+// Test that updating metadata results in the updated_at field being changed, as
+// our TTL cache mechanism depends on this working
+func TestMetadataUpsertModifiesUpdateAtField(t *testing.T) {
+	testDB := dbtools.DatabaseTest(t)
+	metadataInsert := models.InstanceMetadatum{
+		ID:       instanceID,
+		Metadata: types.JSON(instanceMetadata0),
+	}
+
+	metadataUpdate := models.InstanceMetadatum{
+		ID:       instanceID,
+		Metadata: types.JSON(instanceMetadata1),
+	}
+
+	// Insert the metadata record
+	err := upserter.UpsertMetadata(context.TODO(), testDB, zap.NewNop(), instanceID, instanceIPs, &metadataInsert)
+	assert.Nil(t, err)
+
+	m1, err := models.InstanceMetadata(models.InstanceMetadatumWhere.ID.EQ(instanceID)).One(context.TODO(), testDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Update the metadata record
+	err = upserter.UpsertMetadata(context.TODO(), testDB, zap.NewNop(), instanceID, instanceIPs, &metadataUpdate)
+	assert.Nil(t, err)
+
+	m2, err := models.InstanceMetadata(models.InstanceMetadatumWhere.ID.EQ(instanceID)).One(context.TODO(), testDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.NotEqual(t, m1.UpdatedAt, m2.UpdatedAt)
+}
+
+// Test that updating userdata results in the updated_at field being changed, as
+// our TTL cache mechanism depends on this working
+func TestUserdataUpsertModifiesUpdateAtField(t *testing.T) {
+	testDB := dbtools.DatabaseTest(t)
+	userdataInsert := models.InstanceUserdatum{
+		ID:       instanceID,
+		Userdata: null.NewBytes([]byte(instanceUserdata0), true),
+	}
+
+	userdataUpdate := models.InstanceUserdatum{
+		ID:       instanceID,
+		Userdata: null.NewBytes([]byte(instanceUserdata1), true),
+	}
+
+	// Insert the userdata record
+	err := upserter.UpsertUserdata(context.TODO(), testDB, zap.NewNop(), instanceID, instanceIPs, &userdataInsert)
+	assert.Nil(t, err)
+
+	u1, err := models.InstanceUserdata(models.InstanceUserdatumWhere.ID.EQ(instanceID)).One(context.TODO(), testDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Update the userdata record
+	err = upserter.UpsertUserdata(context.TODO(), testDB, zap.NewNop(), instanceID, instanceIPs, &userdataUpdate)
+	assert.Nil(t, err)
+
+	u2, err := models.InstanceUserdata(models.InstanceUserdatumWhere.ID.EQ(instanceID)).One(context.TODO(), testDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.NotEqual(t, u1.UpdatedAt, u2.UpdatedAt)
 }
 
 // Test that an upsert userdata call including IP Addresses already associated

@@ -28,7 +28,7 @@ type RecordUpserter func(c context.Context, exec boil.ContextExecutor) error
 // removing conflicting or stale instance_ip_addresses rows.
 func UpsertMetadata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, metadata *models.InstanceMetadatum) error {
 	metadataUpserter := func(c context.Context, exec boil.ContextExecutor) error {
-		return metadata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("metadata"), boil.Infer())
+		return metadata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("metadata", "updated_at"), boil.Infer())
 	}
 
 	logger.Sugar().Info("Starting metadata upsert for uuid: ", id)
@@ -41,7 +41,7 @@ func UpsertMetadata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 // removing conflicting or stale instance_ip_addresses rows.
 func UpsertUserdata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, userdata *models.InstanceUserdatum) error {
 	userdataUpserter := func(c context.Context, exec boil.ContextExecutor) error {
-		return userdata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("userdata"), boil.Infer())
+		return userdata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("userdata", "updated_at"), boil.Infer())
 	}
 
 	logger.Sugar().Info("Starting userdata upsert for uuid: ", id)
