@@ -73,7 +73,7 @@ func IdentifyInstanceByIP(logger *zap.Logger, db *sqlx.DB) gin.HandlerFunc {
 		}
 
 		if instanceIPAddress != nil {
-			// We found the row, set the instance ID into the gin context.
+			// We found the row, set the instnace ID into the gin context.
 			c.Set(ContextKeyInstanceID, instanceIPAddress.InstanceID)
 		}
 	}
