@@ -27,8 +27,6 @@ import (
 const (
 	serviceName = "metadata-service"
 
-	cacheTTLDefault = time.Hour
-
 	dbMaxRetriesDefault       = 5
 	dbRetryMaxIntervalDefault = 3 * time.Second
 
@@ -114,9 +112,6 @@ func init() {
 
 	serveCmd.Flags().String("user-state-url", "", "An optional golang template string used to build a URL which instances can use for sending user state events. This template string will be evaluated against the instance metadata, and appended as a 'user_state_url' field on the metadata document served to instances. If no template string is specified, the 'user_state_url' field will not be added to the metadata document.")
 	viperBindFlag("metadata.user_state_url", serveCmd.Flags().Lookup("user-state-url"))
-
-	serveCmd.Flags().Duration("cache-ttl", cacheTTLDefault, "TTL, in seconds, to consider metadata and userdata valid for. Set to 0 to disable.")
-	viperBindFlag("cache_ttl", serveCmd.Flags().Lookup("cache-ttl"))
 
 	serveCmd.Flags().Duration("shutdown-grace-period", shutdownGracePeriod, "The grace period for requests to finish before forcibly exiting.")
 	viperBindFlag("shutdown_grace_period", serveCmd.Flags().Lookup("shutdown-grace-period"))
