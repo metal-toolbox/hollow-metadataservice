@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 
 	"go.hollow.sh/metadataservice/internal/lookup"
@@ -57,6 +59,42 @@ func TestGetUserdataLookupByIP(t *testing.T) {
 			},
 		},
 	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			lookupClient.setResponse(testcase.instanceIP, testcase.lookupResponse)
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetUserdataPath(), nil)
+			req.RemoteAddr = net.JoinHostPort(testcase.instanceIP, "")
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+		})
+	}
+
+	// Verify cache TTL settings are honored by setting the TTL to -1 second so we can avoid having to sleep
+	viper.Set("cache_ttl", -time.Second)
+
+	for _, testcase := range testCases {
+		t.Run(testcase.testName, func(t *testing.T) {
+			lookupClient.setResponse(testcase.instanceIP, testcase.lookupResponse)
+			w := httptest.NewRecorder()
+
+			req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, v1api.GetUserdataPath(), nil)
+			req.RemoteAddr = net.JoinHostPort(testcase.instanceIP, "")
+			router.ServeHTTP(w, req)
+
+			if testcase.expectedStatus == http.StatusOK {
+				testcase.expectedStatus = http.StatusNotFound
+			}
+
+			assert.Equal(t, testcase.expectedStatus, w.Code)
+		})
+	}
+
+	// Setting cache_ttl to zero should disable the TTL behavior
+	viper.Set("cache_ttl", 0)
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testName, func(t *testing.T) {
