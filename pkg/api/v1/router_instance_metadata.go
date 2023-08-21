@@ -351,49 +351,22 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 	deleteMetadata := metadata != nil
 	deleteUserdata := userdata != nil
 
-	deleteInstanceIPs := false
-
-	// Step 1
-	// Attempt to load instance metadata or instance userdata, depending on if
-	// they were passed in as nil
-	if metadata == nil {
-		metadata, err = models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
-		// An ErrNoRows error is expected, so disregard it.
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			dbErrorResponse(r.Logger, c, err)
-			return
-		}
-	}
-
-	if userdata == nil {
-		userdata, err = models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
-		// An ErrNoRows error is expected, so disregard it.
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			dbErrorResponse(r.Logger, c, err)
-			return
-		}
-	}
-
-	switch {
-	case deleteMetadata && deleteUserdata:
-		deleteInstanceIPs = true
-	case deleteMetadata:
-		deleteInstanceIPs = (userdata == nil)
-	case deleteUserdata:
-		deleteInstanceIPs = (metadata == nil)
-	}
-
-	deleteSuccess := false
 	maxDeleteRetries := viper.GetInt("crdb.max_retries")
 	dbRetryInterval := viper.GetDuration("crdb.retry_interval")
 
+	// Deletions occur in two phases
+	// Phase 1: Delete metadata and/or userdata
+	// Phase 2: Check whether metadata or userdata still exists. If neither, delete the instance IPs as well
+	//
+	// Phase 1
+	deleteSuccess := false
 	for i := 0; i <= maxDeleteRetries && !deleteSuccess; i++ {
-		err := performDeletions(c, r, instanceID, metadata, userdata, deleteMetadata, deleteUserdata, deleteInstanceIPs)
+		err := performDeleteTX(c, r, instanceID, metadata, userdata, deleteMetadata, deleteUserdata)
 		if err == nil {
 			deleteSuccess = true
 
 			if i > 0 {
-				r.Logger.Sugar().Info("DB delete transaction for instance ", instanceID, " successful on retry attempt #", i)
+				r.Logger.Sugar().Info("DB metadata/userdata delete transaction for instance ", instanceID, " successful on retry attempt #", i)
 			}
 		} else {
 			// Exponential backoff would be overkill here, but adding a bit of jitter
@@ -404,7 +377,49 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 	}
 
 	if !deleteSuccess {
-		r.Logger.Sugar().Warn("Deletion operation failed for instance ", instanceID, " even after ", maxDeleteRetries, " attempts")
+		r.Logger.Sugar().Warn("Deletion operation for metadata/userdata failed for instance ", instanceID, " even after ", maxDeleteRetries, " attempts")
+
+		dbErrorResponse(r.Logger, c, err)
+
+		return
+	}
+
+	metadata, err = models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+	// An ErrNoRows error is expected, so disregard it.
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		dbErrorResponse(r.Logger, c, err)
+		return
+	}
+
+	userdata, err = models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
+	// An ErrNoRows error is expected, so disregard it.
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		dbErrorResponse(r.Logger, c, err)
+		return
+	}
+
+	// Phase 2
+	if metadata == nil && userdata == nil {
+		deleteSuccess = false
+		for i := 0; i <= maxDeleteRetries && !deleteSuccess; i++ {
+			err := performIPDeleteTX(c, r, instanceID)
+			if err == nil {
+				deleteSuccess = true
+
+				if i > 0 {
+					r.Logger.Sugar().Info("DB IP address delete transaction for instance ", instanceID, " successful on retry attempt #", i)
+				}
+			} else {
+				// Exponential backoff would be overkill here, but adding a bit of jitter
+				// to sleep a short time is reasonable
+				jitter := time.Duration(rand.Int63n(int64(dbRetryInterval)))
+				time.Sleep(jitter)
+			}
+		}
+	}
+
+	if !deleteSuccess {
+		r.Logger.Sugar().Warn("Deletion operation for IP addresses failed for instance ", instanceID, " even after ", maxDeleteRetries, " attempts")
 
 		dbErrorResponse(r.Logger, c, err)
 
@@ -416,16 +431,13 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 	c.Status(http.StatusOK)
 }
 
-func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *models.InstanceMetadatum, userdata *models.InstanceUserdatum, deleteMetadata bool, deleteUserdata bool, deleteInstanceIPs bool) error {
-	// Step 2
-	// Now that we've determined if we should delete the corresponding
-	// instance_ip_addresses rows, start a transaction, delete the passed-in
-	// record, and potentially delete the associated instance_ip_addresses rows.
+// performDeleteTX handles creating and running the db transaction to delete metadata and/or userdata
+func performDeleteTX(c *gin.Context, r *Router, instanceID string, metadata *models.InstanceMetadatum, userdata *models.InstanceUserdatum, deleteMetadata bool, deleteUserdata bool) error {
 	txErr := false
 
 	tx, err := r.DB.BeginTx(c, nil)
 	if err != nil {
-		r.Logger.Sugar().Warn("Something went wrong when running DB.BeginTX() for instance: ", instanceID, err)
+		r.Logger.Sugar().Warn("Something went wrong when running metadata/userdata DB.BeginTX() for instance: ", instanceID, err)
 
 		return err
 	}
@@ -433,18 +445,17 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 	// If there's an error, we'll want to rollback the transaction.
 	defer func() {
 		if txErr {
-			r.Logger.Sugar().Warn("Rolling back delete transaction for instance: ", instanceID)
+			r.Logger.Sugar().Warn("Rolling back metadata/userdata delete transaction for instance: ", instanceID)
 
 			err := tx.Rollback()
 			if err != nil {
-				r.Logger.Sugar().Error("Could not rollback delete transaction for instance: ", instanceID, "Error: ", err)
+				r.Logger.Sugar().Error("Could not rollback metadata/userdata delete transaction for instance: ", instanceID, "Error: ", err)
 			}
 		}
 	}()
 
-	// Step 3
-	// Delete the metadata and/or userdata record, depending on which one was passed in.
-	if deleteMetadata {
+	// Delete the metadata and/or userdata record, depending on which one(s) were flagged for deletion
+	if deleteMetadata && metadata != nil {
 		_, err := metadata.Delete(c, tx)
 		if err != nil {
 			txErr = true
@@ -455,7 +466,7 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 		}
 	}
 
-	if deleteUserdata {
+	if deleteUserdata && userdata != nil {
 		_, err := userdata.Delete(c, tx)
 		if err != nil {
 			txErr = true
@@ -466,27 +477,58 @@ func performDeletions(c *gin.Context, r *Router, instanceID string, metadata *mo
 		}
 	}
 
-	// Step 4
-	// Delete the instance_ip_addresses rows if we've deleted the last metadata
-	// or userdata record associated to the instance ID.
-	if deleteInstanceIPs {
-		_, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(instanceID)).DeleteAll(c, tx)
-		if err != nil {
-			txErr = true
-
-			r.Logger.Sugar().Warn("Something went wrong when setting up deleteInstanceIPs transaction for instance: ", instanceID, "Error: ", err)
-
-			return err
-		}
-	}
-
-	// Step 5
-	// commit our transaction
+	// Commit our transaction
 	err = tx.Commit()
 	if err != nil {
 		txErr = true
 
-		r.Logger.Sugar().Warn("Unable to commit db delete transaction for instance: ", instanceID, "Error: ", err)
+		r.Logger.Sugar().Warn("Unable to commit metadata/userdata db delete transaction for instance: ", instanceID, "Error: ", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// performIPDeleteTX handles creating and running the db transaction to delete instance ip addresses
+func performIPDeleteTX(c *gin.Context, r *Router, instanceID string) error {
+	txErr := false
+
+	tx, err := r.DB.BeginTx(c, nil)
+	if err != nil {
+		r.Logger.Sugar().Warn("Something went wrong when running IP address DB.BeginTX() for instance: ", instanceID, err)
+
+		return err
+	}
+
+	// If there's an error, we'll want to rollback the transaction.
+	defer func() {
+		if txErr {
+			r.Logger.Sugar().Warn("Rolling back IP address delete transaction for instance: ", instanceID)
+
+			err := tx.Rollback()
+			if err != nil {
+				r.Logger.Sugar().Error("Could not rollback IP address delete transaction for instance: ", instanceID, "Error: ", err)
+			}
+		}
+	}()
+
+	// Delete the instance_ip_addresses rows for this instance
+	_, err = models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(instanceID)).DeleteAll(c, tx)
+	if err != nil {
+		txErr = true
+
+		r.Logger.Sugar().Warn("Something went wrong when setting up deleteInstanceIPs transaction for instance: ", instanceID, "Error: ", err)
+
+		return err
+	}
+
+	// Commit our transaction
+	err = tx.Commit()
+	if err != nil {
+		txErr = true
+
+		r.Logger.Sugar().Warn("Unable to commit IP address db delete transaction for instance: ", instanceID, "Error: ", err)
 
 		return err
 	}
