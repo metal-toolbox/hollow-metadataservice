@@ -26,7 +26,7 @@ require (
 	github.com/volatiletech/strmangle v0.0.5
 	github.com/zsais/go-gin-prometheus v0.1.0
 	go.hollow.sh/toolbox v0.6.1
-	go.infratographer.com/x v0.3.4
+	go.infratographer.com/x v0.3.7
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.42.0
 	go.opentelemetry.io/otel v1.16.0
 	go.uber.org/zap v1.25.0
