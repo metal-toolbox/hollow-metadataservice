@@ -53,71 +53,74 @@ func UpsertUserdata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 // metadata and userdata records. Namely, handling conflicting or stale
 // (in the case of an update) IP address associations.
 func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, upsertRecordFunc RecordUpserter) error {
-	// Step 1
-	// Look for any conflicting IP addresses (IPs already present and associated
-	// with a *different* Instance ID)
-	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id)).All(ctx, db)
-	if err != nil {
-		return err
-	}
-
-	// Step 2
-	// Look up any existing instance_ip_addresses rows for the provided instance ID
-	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id)).All(ctx, db)
-	if err != nil {
-		return err
-	}
-
-	// Step 2.5.a
-	// Find "stale" InstanceIPAddress rows for this instance. That is, select
-	// rows from the instanceIPAddresses result which don't have a corresponding
-	// entry in the list of IP Addresses supplied in the call.
-	var staleInstanceIPAddresses models.InstanceIPAddressSlice
-
-	for _, instanceIP := range instanceIPAddresses {
-		found := false
-
-		for _, IP := range ipAddresses {
-			if strings.EqualFold(instanceIP.Address, IP) {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			staleInstanceIPAddresses = append(staleInstanceIPAddresses, instanceIP)
-		}
-	}
-
-	// Step 2.5.b
-	// Find new IP Addresses that were specified in the call that aren't
-	// currently associated to the instance.
-	var newInstanceIPAddresses models.InstanceIPAddressSlice
-
-	for _, IP := range ipAddresses {
-		found := false
-
-		for _, instanceIP := range instanceIPAddresses {
-			if strings.EqualFold(IP, instanceIP.Address) {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			newRecord := &models.InstanceIPAddress{
-				InstanceID: id,
-				Address:    IP,
-			}
-			newInstanceIPAddresses = append(newInstanceIPAddresses, newRecord)
-		}
-	}
-
 	upsertSuccess := false
 	maxUpsertRetries := viper.GetInt("crdb.max_retries")
 	dbRetryInterval := viper.GetDuration("crdb.retry_interval")
 
+	var err error
+
 	for i := 0; i <= maxUpsertRetries && !upsertSuccess; i++ {
+		// Step 1
+		// Look for any conflicting IP addresses (IPs already present and associated
+		// with a *different* Instance ID)
+		conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id)).All(ctx, db)
+		if err != nil {
+			return err
+		}
+
+		// Step 2
+		// Look up any existing instance_ip_addresses rows for the provided instance ID
+		instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id)).All(ctx, db)
+		if err != nil {
+			return err
+		}
+
+		// Step 2.5.a
+		// Find "stale" InstanceIPAddress rows for this instance. That is, select
+		// rows from the instanceIPAddresses result which don't have a corresponding
+		// entry in the list of IP Addresses supplied in the call.
+		var staleInstanceIPAddresses models.InstanceIPAddressSlice
+
+		for _, instanceIP := range instanceIPAddresses {
+			found := false
+
+			for _, IP := range ipAddresses {
+				if strings.EqualFold(instanceIP.Address, IP) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				staleInstanceIPAddresses = append(staleInstanceIPAddresses, instanceIP)
+			}
+		}
+
+		// Step 2.5.b
+		// Find new IP Addresses that were specified in the call that aren't
+		// currently associated to the instance.
+		var newInstanceIPAddresses models.InstanceIPAddressSlice
+
+		for _, IP := range ipAddresses {
+			found := false
+
+			for _, instanceIP := range instanceIPAddresses {
+				if strings.EqualFold(IP, instanceIP.Address) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				newRecord := &models.InstanceIPAddress{
+					InstanceID: id,
+					Address:    IP,
+				}
+				newInstanceIPAddresses = append(newInstanceIPAddresses, newRecord)
+			}
+		}
+
+		// Attempt the actual upsert db transaction
 		err = performUpsert(ctx, db, logger, id, upsertRecordFunc, conflictIPs, staleInstanceIPAddresses, newInstanceIPAddresses)
 		if err == nil {
 			upsertSuccess = true
