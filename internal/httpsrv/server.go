@@ -43,6 +43,7 @@ var (
 	readTimeout     = 10 * time.Second
 	writeTimeout    = 20 * time.Second
 	corsMaxAge      = 12 * time.Hour
+	dbPingTimeout   = 10 * time.Second
 	shutdownTimeout = 10 * time.Second
 )
 
@@ -214,8 +215,14 @@ func (s *Server) livenessCheck(c *gin.Context) {
 // requests. Currently our only dependency is the DB so we just ensure that it
 // is responding.
 func (s *Server) readinessCheck(c *gin.Context) {
-	if err := s.DB.PingContext(c.Request.Context()); err != nil {
-		s.Logger.Sugar().Errorf("readiness check db ping failed", "err", err)
+	startTime := time.Now()
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), dbPingTimeout)
+	defer cancel()
+
+	if err := s.DB.PingContext(ctx); err != nil {
+		failTime := time.Now()
+		s.Logger.Sugar().Errorf("readiness check db ping failed after ", failTime.Sub(startTime).Seconds(), " seconds: ", err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"status": "DOWN",
 		})
