@@ -1,6 +1,7 @@
 package metadataservice
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -435,7 +436,10 @@ func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata 
 func performDeleteTX(c *gin.Context, r *Router, instanceID string, metadata *models.InstanceMetadatum, userdata *models.InstanceUserdatum, deleteMetadata bool, deleteUserdata bool) error {
 	txErr := false
 
-	tx, err := r.DB.BeginTx(c, nil)
+	cWithTimeout, cancel := context.WithTimeout(c, viper.GetDuration("crdb.tx_timeout"))
+	defer cancel()
+
+	tx, err := r.DB.BeginTx(cWithTimeout, nil)
 	if err != nil {
 		r.Logger.Sugar().Warn("Something went wrong when running metadata/userdata DB.BeginTX() for instance: ", instanceID, err)
 
@@ -494,7 +498,10 @@ func performDeleteTX(c *gin.Context, r *Router, instanceID string, metadata *mod
 func performIPDeleteTX(c *gin.Context, r *Router, instanceID string) error {
 	txErr := false
 
-	tx, err := r.DB.BeginTx(c, nil)
+	cWithTimeout, cancel := context.WithTimeout(c, viper.GetDuration("crdb.tx_timeout"))
+	defer cancel()
+
+	tx, err := r.DB.BeginTx(cWithTimeout, nil)
 	if err != nil {
 		r.Logger.Sugar().Warn("Something went wrong when running IP address DB.BeginTX() for instance: ", instanceID, err)
 
