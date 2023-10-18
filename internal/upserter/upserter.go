@@ -64,6 +64,8 @@ func doUpsertWithRetries(ctx context.Context, db *sqlx.DB, logger *zap.Logger, i
 
 			if i > 0 {
 				logger.Sugar().Info("Upsert operation for instance: ", id, " successful on retry attempt #", i)
+			} else {
+				logger.Sugar().Info("Upsert operation for instance: ", id, " successful on first attempt")
 			}
 		} else {
 			// Exponential backoff would be overkill here, but adding a bit of jitter
@@ -119,11 +121,13 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// * ip addresses included in this update request, but are associated with a different instance id (conflictIPs)
 	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id)).All(ctxWithTimeout, db)
 	if err != nil {
+		logger.Sugar().Error("doUpsert DB error when selecting instanceIPAddresses for update: ", err)
 		return err
 	}
 
 	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id)).All(ctxWithTimeout, db)
 	if err != nil {
+		logger.Sugar().Error("doUpsert DB error when selecting conflictIPs for update: ", err)
 		return err
 	}
 
@@ -183,6 +187,8 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 		if err != nil {
 			txErr = true
 
+			logger.Sugar().Error("doUpsert DB error when deleting conflictIPs: ", err)
+
 			return err
 		}
 	}
@@ -194,6 +200,8 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 		_, err := staleIP.Delete(ctxWithTimeout, tx)
 		if err != nil {
 			txErr = true
+
+			logger.Sugar().Error("doUpsert DB error when deleting staleIPs: ", err)
 
 			return err
 		}
@@ -207,6 +215,8 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 		if err != nil {
 			txErr = true
 
+			logger.Sugar().Error("doUpsert DB error when inserting newInstanceIPs: ", err)
+
 			return err
 		}
 	}
@@ -219,6 +229,8 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// value.
 	if err := upsertRecordFunc(ctxWithTimeout, tx); err != nil {
 		txErr = true
+
+		logger.Sugar().Error("doUpsert DB error when upserting the instance_metadata or instance_userdata table: ", err)
 
 		return err
 	}
