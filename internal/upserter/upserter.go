@@ -9,7 +9,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
-	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 	"go.uber.org/zap"
 
 	"go.hollow.sh/metadataservice/internal/models"
@@ -118,12 +117,12 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// This includes:
 	// * ip addresses that already exist for this instance id (instanceIPAddresses)
 	// * ip addresses included in this update request, but are associated with a different instance id (conflictIPs)
-	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id), qm.For("UPDATE")).All(ctx, db)
+	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id)).All(ctx, db)
 	if err != nil {
 		return err
 	}
 
-	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id), qm.For("UPDATE")).All(ctx, db)
+	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id)).All(ctx, db)
 	if err != nil {
 		return err
 	}
