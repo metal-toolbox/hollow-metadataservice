@@ -460,7 +460,7 @@ func performDeleteTX(c *gin.Context, r *Router, instanceID string, metadata *mod
 
 	// Delete the metadata and/or userdata record, depending on which one(s) were flagged for deletion
 	if deleteMetadata && metadata != nil {
-		_, err := metadata.Delete(c, tx)
+		_, err := metadata.Delete(cWithTimeout, tx)
 		if err != nil {
 			txErr = true
 
@@ -471,7 +471,7 @@ func performDeleteTX(c *gin.Context, r *Router, instanceID string, metadata *mod
 	}
 
 	if deleteUserdata && userdata != nil {
-		_, err := userdata.Delete(c, tx)
+		_, err := userdata.Delete(cWithTimeout, tx)
 		if err != nil {
 			txErr = true
 
@@ -521,7 +521,7 @@ func performIPDeleteTX(c *gin.Context, r *Router, instanceID string) error {
 	}()
 
 	// Delete the instance_ip_addresses rows for this instance
-	_, err = models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(instanceID)).DeleteAll(c, tx)
+	_, err = models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(instanceID)).DeleteAll(cWithTimeout, tx)
 	if err != nil {
 		txErr = true
 

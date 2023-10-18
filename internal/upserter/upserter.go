@@ -117,12 +117,12 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// This includes:
 	// * ip addresses that already exist for this instance id (instanceIPAddresses)
 	// * ip addresses included in this update request, but are associated with a different instance id (conflictIPs)
-	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id)).All(ctx, db)
+	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id)).All(ctxWithTimeout, db)
 	if err != nil {
 		return err
 	}
 
-	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id)).All(ctx, db)
+	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id)).All(ctxWithTimeout, db)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 		// TODO: Maybe remove instance_metadata and instance_userdata records for the "old" instance ID(s)?
 		// Potentially after checking to see if this IP was the *last* IP address associated to the
 		// "old" instance ID?
-		_, err := conflictingIP.Delete(ctx, tx)
+		_, err := conflictingIP.Delete(ctxWithTimeout, tx)
 		if err != nil {
 			txErr = true
 
@@ -191,7 +191,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// Remove any "stale" instance_ip_addresses rows associated to the provided
 	// instnace_id but were not specified in the call.
 	for _, staleIP := range staleInstanceIPAddresses {
-		_, err := staleIP.Delete(ctx, tx)
+		_, err := staleIP.Delete(ctxWithTimeout, tx)
 		if err != nil {
 			txErr = true
 
@@ -203,7 +203,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// Create instance_ip_addresses rows for any IP addresses specified in the
 	// call that aren't already associated to the provided instance_id
 	for _, newInstanceIP := range newInstanceIPAddresses {
-		err := newInstanceIP.Insert(ctx, tx, boil.Infer())
+		err := newInstanceIP.Insert(ctxWithTimeout, tx, boil.Infer())
 		if err != nil {
 			txErr = true
 
@@ -217,7 +217,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// is no current row for instance_id. If there is an existing row matching on
 	// instance_id, instead this will just update the metadata or userdata column
 	// value.
-	if err := upsertRecordFunc(ctx, tx); err != nil {
+	if err := upsertRecordFunc(ctxWithTimeout, tx); err != nil {
 		txErr = true
 
 		return err
