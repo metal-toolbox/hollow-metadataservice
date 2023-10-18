@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 
 	"go.hollow.sh/metadataservice/internal/lookup"
@@ -17,6 +19,10 @@ func TestGetEc2MetadataLookupByIP(t *testing.T) {
 	lookupClient := newMockLookupClient()
 	serverConfig := TestServerConfig{LookupEnabled: true, LookupClient: lookupClient}
 	router := *testHTTPServerWithConfig(t, serverConfig)
+
+	viper.SetDefault("crdb.max_retries", 5)
+	viper.SetDefault("crdb.retry_interval", 1*time.Second)
+	viper.SetDefault("crdb.tx_timeout", 15*time.Second)
 
 	type testCase struct {
 		testName       string
