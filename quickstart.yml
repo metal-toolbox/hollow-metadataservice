@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   metadataservice:
-    image: ghcr.io/metal-toolbox/hollow-metadaaservice:v0.0.26
+    image: ghcr.io/metal-toolbox/hollow-metadaaservice:v0.0.27
     depends_on:
       crdb:
         condition: service_healthy
@@ -18,7 +18,7 @@ services:
       - metadataservice
 
   metadataservice-migrate:
-    image: ghcr.io/metal-toolbox/hollow-metadataservice:v0.0.26
+    image: ghcr.io/metal-toolbox/hollow-metadataservice:v0.0.27
     command:
       migrate up
     depends_on:
@@ -31,7 +31,7 @@ services:
       - metadataservice
 
   crdb:
-    image: cockroachdb/cockroach:latest-v22.2
+    image: cockroachdb/cockroach:latest-v23.1
     volumes:
       - db:/cockroach/cockroach-data
     command: start-single-node --insecure
