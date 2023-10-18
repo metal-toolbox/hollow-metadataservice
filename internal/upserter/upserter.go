@@ -93,7 +93,10 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	// Start a DB transaction
 	txErr := false
 
-	tx, err := db.BeginTx(ctx, nil)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, viper.GetDuration("crdb.tx_timeout"))
+	defer cancel()
+
+	tx, err := db.BeginTx(ctxWithTimeout, nil)
 	if err != nil {
 		return err
 	}
