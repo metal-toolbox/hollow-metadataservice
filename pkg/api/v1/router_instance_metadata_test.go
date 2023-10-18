@@ -11,7 +11,9 @@ import (
 	"regexp"
 	"testing"
 	"text/template"
+	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 
 	"go.hollow.sh/metadataservice/internal/dbtools"
@@ -311,6 +313,10 @@ func TestSetMetadataIPAddressConflict(t *testing.T) {
 	router := *testHTTPServer(t)
 	testDB := dbtools.TestDB()
 
+	viper.SetDefault("crdb.max_retries", 5)
+	viper.SetDefault("crdb.retry_interval", 1*time.Second)
+	viper.SetDefault("crdb.tx_timeout", 15*time.Second)
+
 	type testCase struct {
 		testName                string
 		conflictInstanceIDToIPs map[string][]string
@@ -417,6 +423,10 @@ func TestSetMetadataIPAddressConflict(t *testing.T) {
 func TestSetMetadataCreateMetadata(t *testing.T) {
 	router := *testHTTPServer(t)
 	testDB := dbtools.TestDB()
+
+	viper.SetDefault("crdb.max_retries", 5)
+	viper.SetDefault("crdb.retry_interval", 1*time.Second)
+	viper.SetDefault("crdb.tx_timeout", 15*time.Second)
 
 	requestBody := &v1api.UpsertMetadataRequest{
 		ID:          "b94fa75b-1fee-45eb-9925-83011c4834b9",

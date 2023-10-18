@@ -3,7 +3,9 @@ package upserter_test
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/types"
@@ -26,6 +28,10 @@ var (
 // Test that upsert metadata adds a new instance_metadata row to the DB
 func TestUpsertMetadataAddsInstanceMetadataRow(t *testing.T) {
 	testDB := dbtools.DatabaseTest(t)
+
+	viper.SetDefault("crdb.max_retries", 5)
+	viper.SetDefault("crdb.retry_interval", 1*time.Second)
+	viper.SetDefault("crdb.tx_timeout", 15*time.Second)
 
 	exists, err := models.InstanceMetadatumExists(context.TODO(), testDB, instanceID)
 	if err != nil {
