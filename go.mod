@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/cockroachdb/cockroach-go/v2 v2.3.5
-	github.com/coreos/go-oidc/v3 v3.7.0
+	github.com/coreos/go-oidc/v3 v3.9.0
 	github.com/friendsofgo/errors v0.9.2
 	github.com/gin-contrib/cors v1.5.0
 	github.com/gin-contrib/zap v0.2.0
