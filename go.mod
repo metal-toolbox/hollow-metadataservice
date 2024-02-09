@@ -27,7 +27,7 @@ require (
 	github.com/zsais/go-gin-prometheus v0.1.0
 	go.hollow.sh/toolbox v0.6.2
 	go.infratographer.com/x v0.3.9
-	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.46.1
+	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.48.0
 	go.opentelemetry.io/otel v1.23.1
 	go.uber.org/zap v1.26.0
 	golang.org/x/oauth2 v0.17.0
@@ -115,7 +115,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/grpc v1.59.0 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/protobuf v1.32.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
