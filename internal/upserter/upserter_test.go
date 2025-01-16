@@ -17,13 +17,45 @@ import (
 )
 
 var (
-	instanceID        = "22bc79fc-3834-40b8-b734-30bef9634939"
-	instanceIPs       = []string{"1.2.3.4", "1f00:1f00:1f00:1f00::9/127"}
-	instanceMetadata0 = `{"some":"metadata"}`
-	instanceMetadata1 = `{"some":"updated metadata"}`
-	instanceUserdata0 = "some userdata..."
-	instanceUserdata1 = "some updated userdata..."
+	instanceID              = "22bc79fc-3834-40b8-b734-30bef9634939"
+	instanceIPs             = []string{"1.2.3.4", "1f00:1f00:1f00:1f00::9/127"}
+	instanceMetadata0       = `{"some":"metadata"}`
+	instanceMetadata1       = `{"some":"updated metadata"}`
+	instanceMetadataWithIPs = `{"some":"metadata", "network": {"addresses": [ { "address": "111.22.113.114", "address_family": 4, "cidr": 31, "enabled": true, "id": "d5a8e6e0-137d-4a74-b735-4b9fe3b66e7f" }, { "address": "2604:1380:4631:2600::3", "address_family": 6, "cidr": 127, "id": "0c12dee-19eb-4e23-84e8-978cb375a561" } ] } }`
+	instanceUserdata0       = "some userdata..."
+	instanceUserdata1       = "some updated userdata..."
 )
+
+// Test that we can parse IP addresses from metadata
+func TestExtractIPAddressesFromMetadata(t *testing.T) {
+	metadata := models.InstanceMetadatum(
+		models.InstanceMetadatum{
+			ID:       instanceID,
+			Metadata: types.JSON(instanceMetadataWithIPs),
+		},
+	)
+
+	ips := upserter.ExtractIPAddressesFromMetadata(&metadata)
+
+	assert.Equal(t, 2, len(ips))
+	assert.Equal(t, "111.22.113.114", ips[0])
+	assert.Equal(t, "2604:1380:4631:2600::3", ips[1])
+}
+
+// Test that nothing fails when there are no IP addresses in the metadata document to parse
+func TestExtractIPAddressesFromMetadataWithoutIPs(t *testing.T) {
+	metadata := models.InstanceMetadatum(
+		models.InstanceMetadatum{
+			ID:       instanceID,
+			Metadata: types.JSON(instanceMetadata0),
+		},
+	)
+
+	ips := upserter.ExtractIPAddressesFromMetadata(&metadata)
+
+	assert.Equal(t, 0, len(ips))
+	assert.Nil(t, ips)
+}
 
 // Test that upsert metadata adds a new instance_metadata row to the DB
 func TestUpsertMetadataAddsInstanceMetadataRow(t *testing.T) {
