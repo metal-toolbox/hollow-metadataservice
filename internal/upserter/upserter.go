@@ -2,6 +2,7 @@ package upserter
 
 import (
 	"context"
+	"encoding/json"
 	"math/rand"
 	"strings"
 	"time"
@@ -23,6 +24,55 @@ import (
 // or userdata records back to the calling method.
 type RecordUpserter func(c context.Context, exec boil.ContextExecutor) error
 
+// The following types are used to unmarshal the metadata JSON body so we can
+// extract the IP addresses from it for logging.
+
+// NetworkAddress is a struct used to unmarshal the "network.addresses" JSON array
+type NetworkAddress struct {
+	Address string `json:"address"`
+}
+
+// Network is a struct used to unmarshal the "network" JSON object
+type Network struct {
+	Addresses []NetworkAddress `json:"addresses"`
+}
+
+// MetadataContent is a struct used to unmarshal the metadata JSON body
+type MetadataContent struct {
+	Network Network `json:"network"`
+}
+
+// ExtractIPAddressesFromMetadata is a helper function used to extract IP addresses
+// from the metadata JSON. We only use this for logging purposes, so it can fail silently.
+func ExtractIPAddressesFromMetadata(metadata *models.InstanceMetadatum) []string {
+	var raw map[string]interface{}
+	if err := json.Unmarshal([]byte(metadata.Metadata), &raw); err != nil {
+		return nil
+	}
+
+	network, ok := raw["network"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	addresses, ok := network["addresses"].([]interface{})
+	if !ok {
+		return nil
+	}
+
+	result := make([]string, 0, len(addresses))
+
+	for _, addr := range addresses {
+		if addrMap, ok := addr.(map[string]interface{}); ok {
+			if ipAddr, ok := addrMap["address"].(string); ok {
+				result = append(result, ipAddr)
+			}
+		}
+	}
+
+	return result
+}
+
 // UpsertMetadata is used to upsert (update or insert) an instance_metadata
 // record, along with managing inserting new instance_ip_addresses rows and
 // removing conflicting or stale instance_ip_addresses rows.
@@ -31,7 +81,11 @@ func UpsertMetadata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 		return metadata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("metadata", "updated_at"), boil.Infer())
 	}
 
-	logger.Sugar().Info("Starting metadata upsert for uuid: ", id)
+	// Extract all IP addresses from the metadata body - note that this is different from
+	// the ipAddresses list, which doesn't include IPv6 addresses, as it only includes
+	// addresses that the metadata service would conceivably perform lookups based on.
+	allIPs := ExtractIPAddressesFromMetadata(metadata)
+	logger.Sugar().Info("Starting metadata upsert for uuid: ", id, " where metadata contains IPs: ", allIPs)
 
 	return doUpsertWithRetries(ctx, db, logger, id, ipAddresses, metadataUpserter)
 }
@@ -87,7 +141,7 @@ func doUpsertWithRetries(ctx context.Context, db *sqlx.DB, logger *zap.Logger, i
 // metadata and userdata records. Namely, handling conflicting or stale
 // (in the case of an update) IP address associations.
 func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, upsertRecordFunc RecordUpserter) error {
-	logger.Sugar().Info("doUpsert starting for id: ", id, " - upserting IPs ", ipAddresses)
+	logger.Sugar().Info("doUpsert starting for id: ", id, " - upserting lookupable IPs ", ipAddresses)
 
 	ctx = boil.WithDebug(ctx, true)
 
