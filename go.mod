@@ -7,7 +7,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.9.0
 	github.com/friendsofgo/errors v0.9.2
 	github.com/gin-contrib/cors v1.6.0
-	github.com/gin-contrib/zap v0.2.0
+	github.com/gin-contrib/zap v1.1.4
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-playground/validator/v10 v10.19.0
 	github.com/google/uuid v1.6.0
