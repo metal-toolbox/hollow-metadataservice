@@ -270,6 +270,7 @@ func setupValidator() {
 		if name == "-" {
 			return ""
 		}
+
 		return name
 	})
 }
