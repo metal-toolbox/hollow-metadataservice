@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   metadataservice:
     image: ghcr.io/metal-toolbox/hollow-metadaaservice:v0.0.32

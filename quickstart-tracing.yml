@@ -1,5 +1,3 @@
-version: '3.7'
-
 services:
   metadataservice:
     depends_on:
