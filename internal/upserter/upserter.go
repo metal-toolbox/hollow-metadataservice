@@ -2,15 +2,18 @@ package upserter
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"math/rand"
 	"strings"
-	"time"
 
+	"github.com/cockroachdb/cockroach-go/v2/crdb"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
+	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 	"go.uber.org/zap"
+	"golang.org/x/exp/rand"
 
 	"go.hollow.sh/metadataservice/internal/models"
 )
@@ -85,9 +88,9 @@ func UpsertMetadata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 	// the ipAddresses list, which doesn't include IPv6 addresses, as it only includes
 	// addresses that the metadata service would conceivably perform lookups based on.
 	allIPs := ExtractIPAddressesFromMetadata(metadata)
-	logger.Sugar().Info("Starting metadata upsert for uuid: ", id, " where metadata contains IPs: ", allIPs)
+	logger.Sugar().Info("Starting metadata upsert for instance uuid: ", id, " where metadata contains IPs: ", allIPs)
 
-	return doUpsertWithRetries(ctx, db, logger, id, ipAddresses, metadataUpserter)
+	return doUpsert(ctx, db, logger, id, ipAddresses, metadataUpserter)
 }
 
 // UpsertUserdata is used to upsert (update or insert) an instance_userdata
@@ -98,207 +101,188 @@ func UpsertUserdata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 		return userdata.Upsert(c, exec, true, []string{"id"}, boil.Whitelist("userdata", "updated_at"), boil.Infer())
 	}
 
-	logger.Sugar().Info("Starting userdata upsert for uuid: ", id)
+	logger.Sugar().Info("Starting userdata upsert for instance uuid: ", id)
 
-	return doUpsertWithRetries(ctx, db, logger, id, ipAddresses, userdataUpserter)
+	return doUpsert(ctx, db, logger, id, ipAddresses, userdataUpserter)
 }
 
-// doUpsertWithRetries is just a wrapper function that invokes doUpsert(), but handles the retry logic
-func doUpsertWithRetries(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, upsertRecordFunc RecordUpserter) error {
-	upsertSuccess := false
-	maxUpsertRetries := viper.GetInt("crdb.max_retries")
-	dbRetryInterval := viper.GetDuration("crdb.retry_interval")
-
-	var err error
-
-	for i := 0; i <= maxUpsertRetries && !upsertSuccess; i++ {
-		err = doUpsert(ctx, db, logger, id, ipAddresses, upsertRecordFunc)
-		if err == nil {
-			upsertSuccess = true
-
-			if i > 0 {
-				logger.Sugar().Info("Upsert operation for instance: ", id, " successful on retry attempt #", i)
-			} else {
-				logger.Sugar().Info("Upsert operation for instance: ", id, " successful on first attempt")
-			}
-		} else {
-			// Exponential backoff would be overkill here, but adding a bit of jitter
-			// to sleep a short time is reasonable
-			jitter := time.Duration(rand.Int63n(int64(dbRetryInterval)))
-			time.Sleep(jitter)
-		}
-	}
-
-	if !upsertSuccess {
-		logger.Sugar().Error("Upsert operation failed for instance: ", id, " even after ", maxUpsertRetries, " attempts")
-		return err
-	}
-
-	return nil
-}
-
-// doUpsert handles the functionality common to inserting or updating both
-// metadata and userdata records. Namely, handling conflicting or stale
-// (in the case of an update) IP address associations.
+// doUpsert performs an upsert operation using explicit row locks to ensure upserts are atomic
+// doUpsert performs an upsert operation using explicit row locks to ensure upserts are atomic
 func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, upsertRecordFunc RecordUpserter) error {
-	logger.Sugar().Info("doUpsert starting for id: ", id, " - upserting lookupable IPs ", ipAddresses)
+	// Generate a 5-digit random ID between 10000 and 99999 for this upsert operation for logging purposes
+	lowerLimit, upperLimit := 10000, 9000
+	upsertID := lowerLimit + rand.Intn(upperLimit)
 
-	ctx = boil.WithDebug(ctx, true)
-
-	// Start a DB transaction
-	txErr := false
+	logger.Sugar().Info("doUpsert ", upsertID, " starting for instance id: ", id, " - upserting using lookupable IPs ", ipAddresses)
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, viper.GetDuration("crdb.tx_timeout"))
 	defer cancel()
 
-	tx, err := db.BeginTx(ctxWithTimeout, nil)
-	if err != nil {
-		return err
-	}
+	maxRetries := viper.GetInt("crdb.max_retries")
+	retryCount := 0
 
-	// If there's an error, we'll want to roll back the transaction.
-	defer func() {
-		if txErr {
-			logger.Sugar().Warn("Rolling back doUpsert transaction for instance: ", id, " with ipAddresses: ", ipAddresses)
+	for {
+		// Start a DB transaction using crdb.ExecuteTx, which has built-in support for retrying
+		// the transaction with exponential backoff if it fails for transient errors
+		err := crdb.ExecuteTx(ctxWithTimeout, db.DB, nil, func(tx *sql.Tx) error {
+			// Step 1
+			// Select and lock the ip address rows that may be updated or deleted by this operation
+			// to prevent race conditions. This includes:
+			// * ip addresses that already exist for this instance id (instanceIPAddresses)
+			// * ip addresses included in this update request, but are associated with a different instance id (conflictIPs)
+			var queryMods []qm.QueryMod
+			queryMods = append(queryMods, qm.For("UPDATE"))
 
-			err := tx.Rollback()
+			if len(ipAddresses) > 0 {
+				// If we have IP addresses to look up, we'll want to lock rows for these conflictIPs as well
+				queryMods = append(queryMods,
+					qm.Where("instance_id = ? OR address = ANY(?::inet[])",
+						id, pq.Array(ipAddresses),
+					),
+				)
+			} else {
+				// If we don't have any IP addresses to look up, we'll just lock rows for this instance ID
+				queryMods = append(queryMods,
+					qm.Where("instance_id = ?", id),
+				)
+			}
+
+			// Perform the select and lock query
+			_, err := models.InstanceIPAddresses(queryMods...).All(ctxWithTimeout, db)
 			if err != nil {
-				logger.Sugar().Error("Could not roll back doUpsert transaction for instance: ", id, "Error: ", err)
+				logger.Sugar().Error("doUpsert ", upsertID, " DB error when selecting and locking instance_ip_address rows for update. Instance uuid: ", id, " Error: ", err)
+				return err
 			}
-		}
-	}()
 
-	// Step 1
-	// Select and lock the ip address rows that may be updated or deleted by this operation, to prevent race conditions
-	// This includes:
-	// * ip addresses that already exist for this instance id (instanceIPAddresses)
-	// * ip addresses included in this update request, but are associated with a different instance id (conflictIPs)
-	instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id)).All(ctxWithTimeout, db)
-	if err != nil {
-		logger.Sugar().Error("doUpsert DB error when selecting instanceIPAddresses for update: ", err)
-		return err
-	}
-
-	conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id)).All(ctxWithTimeout, db)
-	if err != nil {
-		logger.Sugar().Error("doUpsert DB error when selecting conflictIPs for update: ", err)
-		return err
-	}
-
-	// Step 2.a
-	// Find "stale" InstanceIPAddress rows for this instance. That is, select
-	// rows from the instanceIPAddresses result which don't have a corresponding
-	// entry in the list of IP Addresses supplied in the call.
-	var staleInstanceIPAddresses models.InstanceIPAddressSlice
-
-	for _, instanceIP := range instanceIPAddresses {
-		found := false
-
-		for _, IP := range ipAddresses {
-			if strings.EqualFold(instanceIP.Address, IP) {
-				found = true
-				break
+			// Now save the two segments of that query as separate vars
+			instanceIPAddresses, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.InstanceID.EQ(id)).All(ctxWithTimeout, tx)
+			if err != nil {
+				logger.Sugar().Error("doUpsert ", upsertID, " DB error when selecting instanceIPAddresses for update (post-lock). Instance uuid: ", id, " Error: ", err)
+				return err
 			}
-		}
 
-		if !found {
-			staleInstanceIPAddresses = append(staleInstanceIPAddresses, instanceIP)
-		}
-	}
-
-	// Step 2.b
-	// Find new IP Addresses that were specified in the call that aren't
-	// currently associated to the instance.
-	var newInstanceIPAddresses models.InstanceIPAddressSlice
-
-	for _, IP := range ipAddresses {
-		found := false
-
-		for _, instanceIP := range instanceIPAddresses {
-			if strings.EqualFold(IP, instanceIP.Address) {
-				found = true
-				break
+			conflictIPs, err := models.InstanceIPAddresses(models.InstanceIPAddressWhere.Address.IN(ipAddresses), models.InstanceIPAddressWhere.InstanceID.NEQ(id)).All(ctxWithTimeout, tx)
+			if err != nil {
+				logger.Sugar().Error("doUpsert ", upsertID, " DB error when selecting conflictIPs for update (post-lock). Instance uuid: ", id, " IP Addresses: ", ipAddresses, " Error: ", err)
+				return err
 			}
-		}
 
-		if !found {
-			newRecord := &models.InstanceIPAddress{
-				InstanceID: id,
-				Address:    IP,
+			// Step 2.a
+			// Find "stale" InstanceIPAddress rows for this instance. That is, select
+			// rows from the instanceIPAddresses result which don't have a corresponding
+			// entry in the list of IP Addresses supplied in the call.
+			var staleInstanceIPAddresses models.InstanceIPAddressSlice
+
+			for _, instanceIP := range instanceIPAddresses {
+				found := false
+
+				for _, IP := range ipAddresses {
+					if strings.EqualFold(instanceIP.Address, IP) {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					logger.Sugar().Info("doUpsert ", upsertID, " found stale instanceIP row for instance uuid: ", id, " IP: ", instanceIP.Address)
+					staleInstanceIPAddresses = append(staleInstanceIPAddresses, instanceIP)
+				}
 			}
-			newInstanceIPAddresses = append(newInstanceIPAddresses, newRecord)
+
+			// Step 2.b
+			// Find new IP Addresses that were specified in the call that aren't
+			// currently associated to the instance.
+			var newInstanceIPAddresses models.InstanceIPAddressSlice
+
+			for _, IP := range ipAddresses {
+				found := false
+
+				for _, instanceIP := range instanceIPAddresses {
+					if strings.EqualFold(IP, instanceIP.Address) {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					logger.Sugar().Info("doUpsert ", upsertID, " found new instanceIP for instance uuid: ", id, " IP: ", IP)
+					newRecord := &models.InstanceIPAddress{
+						InstanceID: id,
+						Address:    IP,
+					}
+					newInstanceIPAddresses = append(newInstanceIPAddresses, newRecord)
+				}
+			}
+
+			// Step 3
+			// Remove any instance_ip_address rows for the specified IP addresses that
+			// are currently associated to a *different* instance ID
+			for _, conflictingIP := range conflictIPs {
+				logger.Sugar().Info("doUpsert ", upsertID, " deleting conflictIP row for instance uuid: ", id, " IP: ", conflictingIP.Address)
+
+				// TODO: Maybe remove instance_metadata and instance_userdata records for the "old" instance ID(s)?
+				_, err := conflictingIP.Delete(ctxWithTimeout, tx)
+				if err != nil {
+					logger.Sugar().Error("doUpsert ", upsertID, " DB error when deleting conflictIPs. Instance uuid: ", id, " conflicting IP: ", conflictingIP, " Error: ", err)
+
+					return err
+				}
+			}
+
+			// Step 4
+			// Remove any "stale" instance_ip_addresses rows associated to the provided
+			// instnace_id but were not specified in the call.
+			for _, staleIP := range staleInstanceIPAddresses {
+				logger.Sugar().Info("doUpsert ", upsertID, " deleting stale instanceIP row for instance uuid: ", id, " IP: ", staleIP.Address)
+
+				_, err := staleIP.Delete(ctxWithTimeout, tx)
+				if err != nil {
+					logger.Sugar().Error("doUpsert ", upsertID, " DB error when deleting staleIPs. Instance uuid: ", id, " staleIP: ", staleIP, " Error: ", err)
+
+					return err
+				}
+			}
+
+			// Step 5
+			// Create instance_ip_addresses rows for any IP addresses specified in the
+			// call that aren't already associated to the provided instance_id
+			for _, newInstanceIP := range newInstanceIPAddresses {
+				err := newInstanceIP.Insert(ctxWithTimeout, tx, boil.Infer())
+				if err != nil {
+					logger.Sugar().Error("doUpsert ", upsertID, " DB error when inserting newInstanceIPs. Instance uuid: ", id, " newInstanceIP: ", " Error: ", err)
+
+					return err
+				}
+			}
+
+			// Step 6
+			// Upsert the instance_metadata or instance_userdata table. This will create
+			// a new row with the provided instance ID and metadata or userdata if there
+			// is no current row for instance_id. If there is an existing row matching on
+			// instance_id, instead this will just update the metadata or userdata column
+			// value.
+			if err := upsertRecordFunc(ctxWithTimeout, tx); err != nil {
+				logger.Sugar().Error("doUpsert ", upsertID, " DB error when upserting the instance_metadata or instance_userdata table for instance uuid: ", id, " Error: ", err)
+
+				return err
+			}
+
+			return nil
+		})
+
+		if err == nil {
+			logger.Sugar().Info("doUpsert ", upsertID, " successful on retry ", retryCount, " for instance uuid: ", id)
+			return nil
 		}
-	}
 
-	// Step 3
-	// Remove any instance_ip_address rows for the specified IP addresses that
-	// are currently associated to a *different* instance ID
-	for _, conflictingIP := range conflictIPs {
-		// TODO: Maybe remove instance_metadata and instance_userdata records for the "old" instance ID(s)?
-		// Potentially after checking to see if this IP was the *last* IP address associated to the
-		// "old" instance ID?
-		_, err := conflictingIP.Delete(ctxWithTimeout, tx)
-		if err != nil {
-			txErr = true
+		logger.Sugar().Error("doUpsert ", upsertID, " DB error on retry ", retryCount, " when executing the transaction. Instance uuid: ", id, " Error: ", err)
 
-			logger.Sugar().Error("doUpsert DB error when deleting conflictIPs: ", err)
-
+		if retryCount >= maxRetries {
+			logger.Sugar().Error("doUpsert ", upsertID, " failed for instance uuid: ", id, " even after ", maxRetries, " attempts")
 			return err
 		}
+
+		retryCount++
+		logger.Sugar().Warn("doUpsert ", upsertID, " retrying upsert for instance uuid: ", id, " on attempt ", retryCount)
 	}
-
-	// Step 4
-	// Remove any "stale" instance_ip_addresses rows associated to the provided
-	// instnace_id but were not specified in the call.
-	for _, staleIP := range staleInstanceIPAddresses {
-		_, err := staleIP.Delete(ctxWithTimeout, tx)
-		if err != nil {
-			txErr = true
-
-			logger.Sugar().Error("doUpsert DB error when deleting staleIPs: ", err)
-
-			return err
-		}
-	}
-
-	// Step 5
-	// Create instance_ip_addresses rows for any IP addresses specified in the
-	// call that aren't already associated to the provided instance_id
-	for _, newInstanceIP := range newInstanceIPAddresses {
-		err := newInstanceIP.Insert(ctxWithTimeout, tx, boil.Infer())
-		if err != nil {
-			txErr = true
-
-			logger.Sugar().Error("doUpsert DB error when inserting newInstanceIPs: ", err)
-
-			return err
-		}
-	}
-
-	// Step 6
-	// Upsert the instance_metadata or instance_userdata table. This will create
-	// a new row with the provided instance ID and metadata or userdata if there
-	// is no current row for instance_id. If there is an existing row matching on
-	// instance_id, instead this will just update the metadata or userdata column
-	// value.
-	if err := upsertRecordFunc(ctxWithTimeout, tx); err != nil {
-		txErr = true
-
-		logger.Sugar().Error("doUpsert DB error when upserting the instance_metadata or instance_userdata table: ", err)
-
-		return err
-	}
-
-	// Step 7
-	// Commit our transaction
-	err = tx.Commit()
-	if err != nil {
-		txErr = true
-
-		logger.Sugar().Warn("Unable to commit db upsert transaction for instance: ", id, "Error: ", err)
-
-		return err
-	}
-
-	return nil
 }
