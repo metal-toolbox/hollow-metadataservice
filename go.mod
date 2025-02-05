@@ -2,7 +2,7 @@ module go.hollow.sh/metadataservice
 
 go 1.23
 
-toolchain go1.23.4
+toolchain go1.23.6
 
 require (
 	github.com/cockroachdb/cockroach-go/v2 v2.3.6
