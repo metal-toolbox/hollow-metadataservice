@@ -83,7 +83,7 @@ func init() {
 	viperBindFlag("oidc.claims.username", serveCmd.Flags().Lookup("oidc-username-claim"))
 
 	// Lookup Service Flags
-	serveCmd.Flags().Bool("lookup-enabled", false, "Use the lookup client to attempt to fetch metadata or userdata from an upstream source when it is not cached locall for the instance")
+	serveCmd.Flags().Bool("lookup-enabled", false, "Use the lookup client to attempt to fetch metadata or userdata from an upstream source when it is not cached locally for the instance")
 	viperBindFlag("lookup.enabled", serveCmd.Flags().Lookup("lookup-enabled"))
 
 	serveCmd.Flags().String("lookup-service-url", "", "URL to the metadata lookup service (like 'https://metadata-lookup-service.tld/api/v1/') to use when fetching metadata or userdata from an upstream source")
