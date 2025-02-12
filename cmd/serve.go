@@ -29,7 +29,7 @@ const (
 
 	dbMaxRetriesDefault       = 5
 	dbRetryMaxIntervalDefault = 3 * time.Second
-	dbTxTimoutDefault         = 15 * time.Second
+	dbTxTimeoutDefault        = 25 * time.Second
 
 	shutdownGracePeriod = 10 * time.Second
 )
@@ -60,7 +60,7 @@ func init() {
 	serveCmd.Flags().Duration("db-retry-max-interval", dbRetryMaxIntervalDefault, "maximum number of seconds to sleep between db transaction retries (includes random jitter)")
 	viperBindFlag("crdb.retry_interval", serveCmd.Flags().Lookup("db-retry-max-interval"))
 
-	serveCmd.Flags().Duration("db-tx-timeout", dbTxTimoutDefault, "maximum number of seconds to allow db transactions to run for")
+	serveCmd.Flags().Duration("db-tx-timeout", dbTxTimeoutDefault, "maximum number of seconds to allow db transactions to run for")
 	viperBindFlag("crdb.tx_timeout", serveCmd.Flags().Lookup("db-tx-timeout"))
 
 	// OIDC Flags
