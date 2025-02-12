@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/cockroachdb/cockroach-go/v2/crdb"
@@ -13,7 +14,6 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 	"go.uber.org/zap"
-	"golang.org/x/exp/rand"
 
 	"go.hollow.sh/metadataservice/internal/models"
 )
@@ -111,7 +111,7 @@ func UpsertUserdata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, upsertRecordFunc RecordUpserter) error {
 	// Generate a 5-digit random ID between 10000 and 99999 for this upsert operation for logging purposes
 	lowerLimit, upperLimit := 10000, 9000
-	upsertID := lowerLimit + rand.Intn(upperLimit)
+	upsertID := lowerLimit + rand.IntN(upperLimit)
 
 	logger.Sugar().Info("doUpsert ", upsertID, " starting for instance uuid: ", id, " - upserting using lookupable IPs ", ipAddresses)
 
