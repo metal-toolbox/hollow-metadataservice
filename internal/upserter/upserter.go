@@ -113,15 +113,15 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	lowerLimit, upperLimit := 10000, 9000
 	upsertID := lowerLimit + rand.Intn(upperLimit)
 
-	logger.Sugar().Info("doUpsert ", upsertID, " starting for instance id: ", id, " - upserting using lookupable IPs ", ipAddresses)
-
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, viper.GetDuration("crdb.tx_timeout"))
-	defer cancel()
+	logger.Sugar().Info("doUpsert ", upsertID, " starting for instance uuid: ", id, " - upserting using lookupable IPs ", ipAddresses)
 
 	maxRetries := viper.GetInt("crdb.max_retries")
 	retryCount := 0
 
 	for {
+		// Create a new context with a timeout for the DB transaction
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, viper.GetDuration("crdb.tx_timeout"))
+
 		// Start a DB transaction using crdb.ExecuteTx, which has built-in support for retrying
 		// the transaction with exponential backoff if it fails for transient errors
 		err := crdb.ExecuteTx(ctxWithTimeout, db.DB, nil, func(tx *sql.Tx) error {
@@ -270,6 +270,9 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 			return nil
 		})
 
+		// Cancel the context to ensure the transaction is cleaned up
+		cancel()
+
 		if err == nil {
 			logger.Sugar().Info("doUpsert ", upsertID, " successful on retry ", retryCount, " for instance uuid: ", id)
 			return nil
@@ -280,6 +283,12 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 		if retryCount >= maxRetries {
 			logger.Sugar().Error("doUpsert ", upsertID, " failed for instance uuid: ", id, " even after ", maxRetries, " attempts")
 			return err
+		}
+
+		// Check if the parent context has been cancelled before retrying
+		if ctx.Err() != nil {
+			logger.Sugar().Error("doUpsert ", upsertID, " parent context cancelled for instance uuid: ", id, " - aborting retry")
+			return ctx.Err()
 		}
 
 		retryCount++
