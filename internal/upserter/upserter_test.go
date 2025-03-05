@@ -21,7 +21,10 @@ var (
 	instanceIPs             = []string{"1.2.3.4", "1f00:1f00:1f00:1f00::9/127"}
 	instanceMetadata0       = `{"some":"metadata"}`
 	instanceMetadata1       = `{"some":"updated metadata"}`
-	instanceMetadataWithIPs = `{"some":"metadata", "network": {"addresses": [ { "address": "111.22.113.114", "address_family": 4, "cidr": 31, "enabled": true, "id": "d5a8e6e0-137d-4a74-b735-4b9fe3b66e7f" }, { "address": "2604:1380:4631:2600::3", "address_family": 6, "cidr": 127, "id": "0c12dee-19eb-4e23-84e8-978cb375a561" } ] } }`
+	instanceMetadataWithIPs = `{"some":"metadata", "updated_at": "2023-04-12T15:30:45.123Z", "network": {"addresses": [ { "address": "111.22.113.114", "address_family": 4, "cidr": 31, "enabled": true, "id": "d5a8e6e0-137d-4a74-b735-4b9fe3b66e7f" }, { "address": "2604:1380:4631:2600::3", "address_family": 6, "cidr": 127, "id": "0c12dee-19eb-4e23-84e8-978cb375a561" } ] } }`
+	instanceMetadataV1      = `{"hostname": "version1", "updated_at": "2025-01-15T15:30:30:111Z"}`
+	instanceMetadataV2      = `{"hostname": "version2", "updated_at": "2025-01-15T15:30:30:222Z"}`
+	instanceMetadataV3      = `{"hostname": "version3", "updated_at": "2025-01-15T15:30:30:333Z"}`
 	instanceUserdata0       = "some userdata..."
 	instanceUserdata1       = "some updated userdata..."
 )
@@ -40,6 +43,32 @@ func TestExtractIPAddressesFromMetadata(t *testing.T) {
 	assert.Equal(t, 2, len(ips))
 	assert.Equal(t, "111.22.113.114", ips[0])
 	assert.Equal(t, "2604:1380:4631:2600::3", ips[1])
+}
+
+// Test that we can parse updated_at from metadata
+func TestExtractUpdatedAtFromMetadata(t *testing.T) {
+	metadataWithoutUpdatedAt := models.InstanceMetadatum(
+		models.InstanceMetadatum{
+			ID:       instanceID,
+			Metadata: types.JSON(instanceMetadata0),
+		},
+	)
+
+	metadataWithUpdatedAt := models.InstanceMetadatum(
+		models.InstanceMetadatum{
+			ID:       instanceID,
+			Metadata: types.JSON(instanceMetadataWithIPs),
+		},
+	)
+
+	noUpdatedAt := upserter.ExtractUpdatedAtFromMetadata(&metadataWithoutUpdatedAt)
+
+	assert.Empty(t, noUpdatedAt)
+
+	withUpdatedAt := upserter.ExtractUpdatedAtFromMetadata(&metadataWithUpdatedAt)
+
+	assert.NotEmpty(t, withUpdatedAt)
+	assert.Equal(t, "2023-04-12T15:30:45.123Z", withUpdatedAt)
 }
 
 // Test that nothing fails when there are no IP addresses in the metadata document to parse
@@ -207,8 +236,91 @@ func TestUpsertMetadataRemovesConflictingIPAddressesRows(t *testing.T) {
 	assert.Equal(t, 0, len(oldInstanceIPAddresses))
 }
 
+// Test that stale metadata updates are ignored
+func TestStaleMetadataUpdatesAreIgnored(t *testing.T) {
+	testDB := dbtools.DatabaseTest(t)
+
+	viper.SetDefault("crdb.max_retries", 5)
+	viper.SetDefault("crdb.retry_interval", 1*time.Second)
+	viper.SetDefault("crdb.tx_timeout", 15*time.Second)
+
+	exists, err := models.InstanceMetadatumExists(context.TODO(), testDB, instanceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.False(t, exists)
+
+	// We'll upsert metadata in the order V2 -> V3 -> V1, and the failure should
+	// happen on the V1 upsert
+	metadata := models.InstanceMetadatum{
+		ID:       instanceID,
+		Metadata: types.JSON(instanceMetadataV2),
+	}
+
+	metadataUpdate := models.InstanceMetadatum{
+		ID:       instanceID,
+		Metadata: types.JSON(instanceMetadataV3),
+	}
+
+	staleMetadata := models.InstanceMetadatum{
+		ID:       instanceID,
+		Metadata: types.JSON(instanceMetadataV1),
+	}
+
+	// Upsert V2 metadata
+	err = upserter.UpsertMetadata(context.TODO(), testDB, zap.NewNop(), instanceID, instanceIPs, &metadata)
+	assert.Nil(t, err)
+
+	exists, err = models.InstanceMetadatumExists(context.TODO(), testDB, instanceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.True(t, exists)
+
+	mv2, err := models.InstanceMetadata(models.InstanceMetadatumWhere.ID.EQ(instanceID)).One(context.TODO(), testDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, instanceMetadataV2, mv2.Metadata.String())
+
+	// Upsert V3 metadata
+	err = upserter.UpsertMetadata(context.TODO(), testDB, zap.NewNop(), instanceID, instanceIPs, &metadataUpdate)
+	assert.Nil(t, err)
+
+	exists, err = models.InstanceMetadatumExists(context.TODO(), testDB, instanceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.True(t, exists)
+
+	mv3, err := models.InstanceMetadata(models.InstanceMetadatumWhere.ID.EQ(instanceID)).One(context.TODO(), testDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, instanceMetadataV3, mv3.Metadata.String())
+
+	// Attempt to update with stale metadata (V1)
+	err = upserter.UpsertMetadata(context.TODO(), testDB, zap.NewNop(), instanceID, instanceIPs, &staleMetadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the metadata was not updated
+	mv1, err := models.InstanceMetadata(models.InstanceMetadatumWhere.ID.EQ(instanceID)).One(context.TODO(), testDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, instanceMetadataV3, mv1.Metadata.String())
+}
+
 // Test that upsert userdata adds a new instance_userdata row to the DB
-func TestUpsertUserdataAddsInstanceMetadataRow(t *testing.T) {
+func TestUpsertUserdataAddsInstanceUserdataRow(t *testing.T) {
 	testDB := dbtools.DatabaseTest(t)
 
 	exists, err := models.InstanceUserdatumExists(context.TODO(), testDB, instanceID)

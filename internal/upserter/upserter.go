@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"math/rand/v2"
 	"strings"
 
@@ -45,6 +46,11 @@ type MetadataContent struct {
 	Network Network `json:"network"`
 }
 
+// ErrExistingMetadataIsNewer is a custom error used to indicate that the existing
+// metadata record is newer than the one being upserted. This is used to prevent
+// further retries in the outer upsert loop.
+var ErrExistingMetadataIsNewer = errors.New("existing metadata is newer")
+
 // ExtractIPAddressesFromMetadata is a helper function used to extract IP addresses
 // from the metadata JSON. We only use this for logging purposes, so it can fail silently.
 func ExtractIPAddressesFromMetadata(metadata *models.InstanceMetadatum) []string {
@@ -76,6 +82,22 @@ func ExtractIPAddressesFromMetadata(metadata *models.InstanceMetadatum) []string
 	return result
 }
 
+// ExtractUpdatedAtFromMetadata is a helper function used to extract the updated_at
+// field from the metadata JSON, if it exists.
+func ExtractUpdatedAtFromMetadata(metadata *models.InstanceMetadatum) string {
+	var raw map[string]interface{}
+	if err := json.Unmarshal([]byte(metadata.Metadata), &raw); err != nil {
+		return ""
+	}
+
+	updatedAt, ok := raw["updated_at"].(string)
+	if !ok {
+		return ""
+	}
+
+	return updatedAt
+}
+
 // UpsertMetadata is used to upsert (update or insert) an instance_metadata
 // record, along with managing inserting new instance_ip_addresses rows and
 // removing conflicting or stale instance_ip_addresses rows.
@@ -90,7 +112,11 @@ func UpsertMetadata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 	allIPs := ExtractIPAddressesFromMetadata(metadata)
 	logger.Sugar().Info("Starting metadata upsert for instance uuid: ", id, " where metadata contains IPs: ", allIPs)
 
-	return doUpsert(ctx, db, logger, id, ipAddresses, metadataUpserter)
+	// Extract the updated_at field from the metadata body, if it exists. This is
+	// optionally used during upserts to prevent a race condition.
+	metadataUpdatedAt := ExtractUpdatedAtFromMetadata(metadata)
+
+	return doUpsert(ctx, db, logger, id, ipAddresses, metadataUpdatedAt, metadataUpserter)
 }
 
 // UpsertUserdata is used to upsert (update or insert) an instance_userdata
@@ -103,12 +129,12 @@ func UpsertUserdata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id str
 
 	logger.Sugar().Info("Starting userdata upsert for instance uuid: ", id)
 
-	return doUpsert(ctx, db, logger, id, ipAddresses, userdataUpserter)
+	return doUpsert(ctx, db, logger, id, ipAddresses, "", userdataUpserter)
 }
 
 // doUpsert performs an upsert operation using explicit row locks to ensure upserts are atomic
-// doUpsert performs an upsert operation using explicit row locks to ensure upserts are atomic
-func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, upsertRecordFunc RecordUpserter) error {
+// nolint: gocyclo
+func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, ipAddresses []string, metadataUpdatedAt string, upsertRecordFunc RecordUpserter) error {
 	// Generate a 5-digit random ID between 10000 and 99999 for this upsert operation for logging purposes
 	lowerLimit, upperLimit := 10000, 9000
 	upsertID := lowerLimit + rand.IntN(upperLimit)
@@ -165,6 +191,34 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 			if err != nil {
 				logger.Sugar().Error("doUpsert ", upsertID, " DB error when selecting conflictIPs for update (post-lock). Instance uuid: ", id, " IP Addresses: ", ipAddresses, " Error: ", err)
 				return err
+			}
+
+			// If we've been passed in a non-empty metadataUpdatedAt, we're doing a metadata
+			// upsert. The following includes some extra checks to ensure the upsert isn't
+			// older than the existing record, by comparing the metadata updated_at fields.
+			// The check is skipped if we don't find an updated_at field in the existing
+			// metadata record, for backwards compatibility.
+			if metadataUpdatedAt != "" {
+				existingMetadata, err := models.FindInstanceMetadatum(ctxWithTimeout, tx, id)
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					logger.Sugar().Error("doUpsert ", upsertID, " DB error when looking up if an existing metadata record exists for instance uuid: ", id, " Error: ", err)
+					return err
+				}
+
+				if existingMetadata != nil {
+					existingMetadataUpdatedAt := ExtractUpdatedAtFromMetadata(existingMetadata)
+					if existingMetadataUpdatedAt != "" {
+						// The metadata updated_at field is a timestamp with millisecond precision
+						// in the format: "YYYY-MM-DDTHH:MM:SS.sssZ", so we can use a simple string
+						// comparison to check which one is newer.
+						if metadataUpdatedAt < existingMetadataUpdatedAt {
+							logger.Sugar().Info("doUpsert ", upsertID, " skipping upsert for instance uuid: ", id, ": existing metadata data is newer: ", existingMetadataUpdatedAt, " vs. upsert with: ", metadataUpdatedAt)
+							return ErrExistingMetadataIsNewer
+						}
+
+						logger.Sugar().Info("doUpsert ", upsertID, " verified upsert for instance uuid: ", id, " is newer: ", existingMetadataUpdatedAt, " vs. upsert with: ", metadataUpdatedAt)
+					}
+				}
 			}
 
 			// Step 2.a
@@ -278,7 +332,12 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 			return nil
 		}
 
-		logger.Sugar().Error("doUpsert ", upsertID, " DB error on retry ", retryCount, " when executing the transaction. Instance uuid: ", id, " Error: ", err)
+		if errors.Is(err, ErrExistingMetadataIsNewer) {
+			// Don't keep retrying to upsert stale metadata, just skip this upsert
+			return nil
+		}
+
+		logger.Sugar().Warn("doUpsert ", upsertID, " DB error on retry ", retryCount, " when executing the transaction. Instance uuid: ", id, " Error: ", err)
 
 		if retryCount >= maxRetries {
 			logger.Sugar().Error("doUpsert ", upsertID, " failed for instance uuid: ", id, " even after ", maxRetries, " attempts")
