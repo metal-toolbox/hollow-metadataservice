@@ -27,7 +27,7 @@ import (
 const (
 	serviceName = "metadata-service"
 
-	dbMaxRetriesDefault       = 5
+	dbMaxRetriesDefault       = 3
 	dbRetryMaxIntervalDefault = 3 * time.Second
 	dbTxTimeoutDefault        = 25 * time.Second
 
