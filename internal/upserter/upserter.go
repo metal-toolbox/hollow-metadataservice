@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"strings"
+	"time"
 
 	"github.com/cockroachdb/cockroach-go/v2/crdb"
 	"github.com/jmoiron/sqlx"
@@ -139,14 +140,23 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 	lowerLimit, upperLimit := 10000, 9000
 	upsertID := lowerLimit + rand.IntN(upperLimit)
 
-	logger.Sugar().Info("doUpsert ", upsertID, " starting for instance uuid: ", id, " - upserting using lookupable IPs ", ipAddresses)
+	logger.Sugar().Info("doUpsert ", upsertID, " starting for instance uuid: ", id, " - upserting using ", len(ipAddresses), " lookupable IPs ", ipAddresses)
+
+	txTimeout := viper.GetDuration("crdb.tx_timeout")
+	// If we have more than 25 IP addresses in this upsert, increase the transaction timeout
+	// by 0.5 second per additional IP address because this operation is likely to take longer
+	// nolint: mnd
+	if len(ipAddresses) > 25 {
+		txTimeout += time.Duration(len(ipAddresses)-25) * 500 * time.Millisecond
+		logger.Sugar().Info("doUpsert ", upsertID, " increasing db transaction timeout to ", txTimeout, " for instance uuid: ", id)
+	}
 
 	maxRetries := viper.GetInt("crdb.max_retries")
 	retryCount := 0
 
 	for {
 		// Create a new context with a timeout for the DB transaction
-		ctxWithTimeout, cancel := context.WithTimeout(ctx, viper.GetDuration("crdb.tx_timeout"))
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, txTimeout)
 
 		// Start a DB transaction using crdb.ExecuteTx, which has built-in support for retrying
 		// the transaction with exponential backoff if it fails for transient errors
@@ -159,7 +169,9 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 			var queryMods []qm.QueryMod
 			queryMods = append(queryMods, qm.For("UPDATE"))
 
-			if len(ipAddresses) > 0 {
+			// Trying to lock too many rows at once increases the likelihood of deadlocks, so we'll
+			// limit the number of rows we lock to 25. This should cover the vast majority of cases.
+			if len(ipAddresses) > 0 && len(ipAddresses) <= 25 {
 				// If we have IP addresses to look up, we'll want to lock rows for these conflictIPs as well
 				queryMods = append(queryMods,
 					qm.Where("instance_id = ? OR address = ANY(?::inet[])",
@@ -167,7 +179,7 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 					),
 				)
 			} else {
-				// If we don't have any IP addresses to look up, we'll just lock rows for this instance ID
+				// Just lock rows for this instance ID
 				queryMods = append(queryMods,
 					qm.Where("instance_id = ?", id),
 				)
@@ -301,12 +313,16 @@ func doUpsert(ctx context.Context, db *sqlx.DB, logger *zap.Logger, id string, i
 			// Create instance_ip_addresses rows for any IP addresses specified in the
 			// call that aren't already associated to the provided instance_id
 			for _, newInstanceIP := range newInstanceIPAddresses {
+				logger.Sugar().Info("doUpsert ", upsertID, " about to insert newInstanceIP ", newInstanceIP, " for instance uuid: ", id)
+
 				err := newInstanceIP.Insert(ctxWithTimeout, tx, boil.Infer())
 				if err != nil {
 					logger.Sugar().Error("doUpsert ", upsertID, " DB error when inserting newInstanceIPs. Instance uuid: ", id, " newInstanceIP: ", " Error: ", err)
 
 					return err
 				}
+
+				logger.Sugar().Info("doUpsert ", upsertID, " newInstanceIP insert successful: ", newInstanceIP, " for instance uuid: ", id)
 			}
 
 			// Step 6
