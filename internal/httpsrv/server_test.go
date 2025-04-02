@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.uber.org/zap"
@@ -60,6 +61,8 @@ func TestLivenessRoute(t *testing.T) {
 
 func TestReadinessRouteDown(t *testing.T) {
 	db, _ := sqlx.Open("postgres", "localhost:12341")
+
+	viper.SetDefault("crdb.enabled", true)
 
 	hs := httpsrv.Server{Logger: zap.NewNop(), AuthConfig: serverAuthConfig, DB: db}
 	s := hs.NewServer()

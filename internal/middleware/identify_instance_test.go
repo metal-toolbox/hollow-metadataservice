@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
@@ -17,6 +18,8 @@ import (
 )
 
 func TestIdentifyInstanceByIP(t *testing.T) {
+	viper.SetDefault("crdb.enabled", true)
+
 	testdb := dbtools.DatabaseTest(t)
 
 	type testCase struct {
@@ -103,6 +106,8 @@ func TestIdentifyInstanceByIP(t *testing.T) {
 }
 
 func TestIdentifyInstanceByIPWithTrustedProxies(t *testing.T) {
+	viper.SetDefault("crdb.enabled", true)
+
 	testdb := dbtools.DatabaseTest(t)
 
 	proxyIP := "1.2.3.4"

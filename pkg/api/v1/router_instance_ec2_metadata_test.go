@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 
 	"go.hollow.sh/metadataservice/internal/dbtools"
@@ -29,6 +30,8 @@ func getEc2MetadataItemPathWithoutTrim(itemPath string) string {
 }
 
 func TestGetEc2MetadataByIP(t *testing.T) {
+	viper.SetDefault("crdb.enabled", true)
+
 	router := *testHTTPServer(t)
 
 	type testCase struct {
@@ -140,6 +143,8 @@ func TestGetEc2MetadataByIP(t *testing.T) {
 }
 
 func TestGetEc2MetadataItemByIP(t *testing.T) {
+	viper.SetDefault("crdb.enabled", true)
+
 	router := *testHTTPServer(t)
 
 	type itemTestCase struct {
@@ -421,6 +426,8 @@ func TestGetEc2MetadataItemByIP(t *testing.T) {
 	}
 
 	t.Run("check routing works with trailing slash in the url", func(t *testing.T) {
+		viper.SetDefault("crdb.enabled", true)
+
 		w := httptest.NewRecorder()
 
 		standardFields := "instance-id\nhostname\niqn\nplan\nfacility\ntags\noperating-system\npublic-keys"

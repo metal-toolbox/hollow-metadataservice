@@ -54,6 +54,9 @@ func init() {
 	// DB flags
 	crdbx.MustViperFlags(viper.GetViper(), serveCmd.Flags())
 
+	serveCmd.Flags().Bool("db-enabled", true, "enables all database operations - if false, all requests will be served from the upstream source and not cached")
+	viperBindFlag("crdb.enabled", serveCmd.Flags().Lookup("db-enabled"))
+
 	serveCmd.Flags().Int("db-tx-max-retries", dbMaxRetriesDefault, "maximum number of times to retry failed db transactions")
 	viperBindFlag("crdb.max_retries", serveCmd.Flags().Lookup("db-tx-max-retries"))
 
@@ -171,12 +174,16 @@ func setupTracing(logger *zap.SugaredLogger) {
 func initDB() *sqlx.DB {
 	dbDriverName := "postgres"
 
-	sqldb, err := crdbx.NewDB(config.AppConfig.CRDB, config.AppConfig.Tracing.Enabled)
-	if err != nil {
-		logger.Fatalw("failed to initialize database connection", "error", err)
-	}
+	var db *sqlx.DB
 
-	db := sqlx.NewDb(sqldb, dbDriverName)
+	if viper.GetBool("crdb.enabled") {
+		sqldb, err := crdbx.NewDB(config.AppConfig.CRDB, config.AppConfig.Tracing.Enabled)
+		if err != nil {
+			logger.Fatalw("failed to initialize database connection", "error", err)
+		}
+
+		db = sqlx.NewDb(sqldb, dbDriverName)
+	}
 
 	return db
 }
