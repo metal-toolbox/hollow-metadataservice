@@ -100,7 +100,7 @@ func UserdataSyncByIP(ctx context.Context, db *sqlx.DB, logger *zap.Logger, clie
 
 	middleware.MetricUserdataLookupRequestCount.Inc()
 
-	resp, err := client.GetUserdataByID(ctx, ipAddress)
+	resp, err := client.GetUserdataByIP(ctx, ipAddress)
 	if err != nil {
 		middleware.MetricUserdataLookupErrors.Inc()
 		return nil, err
