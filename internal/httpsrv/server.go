@@ -14,6 +14,7 @@ import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
+	"github.com/spf13/viper"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.hollow.sh/toolbox/ginjwt"
 	"go.hollow.sh/toolbox/version"
@@ -220,14 +221,16 @@ func (s *Server) readinessCheck(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), dbPingTimeout)
 	defer cancel()
 
-	if err := s.DB.PingContext(ctx); err != nil {
-		failTime := time.Now()
-		s.Logger.Sugar().Errorf("readiness check db ping failed after ", failTime.Sub(startTime).Seconds(), " seconds: ", err)
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"status": "DOWN",
-		})
+	if viper.GetBool("crdb.enabled") {
+		if err := s.DB.PingContext(ctx); err != nil {
+			failTime := time.Now()
+			s.Logger.Sugar().Errorf("readiness check db ping failed after ", failTime.Sub(startTime).Seconds(), " seconds: ", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "DOWN",
+			})
 
-		return
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 
 	"go.hollow.sh/metadataservice/internal/dbtools"
@@ -15,6 +16,8 @@ import (
 )
 
 func TestGetEc2UserdataByIP(t *testing.T) {
+	viper.SetDefault("crdb.enabled", true)
+
 	router := *testHTTPServer(t)
 
 	type testCase struct {

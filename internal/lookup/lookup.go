@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/spf13/viper"
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/types"
 	"go.uber.org/zap"
@@ -115,13 +116,17 @@ func storeMetadata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, lookupR
 		Metadata: types.JSON(lookupResp.Metadata),
 	}
 
-	err := upserter.UpsertMetadata(ctx, db, logger, lookupResp.ID, lookupResp.IPAddresses, newInstanceMetadata)
-	if err != nil {
-		middleware.MetricMetadataStoreErrors.Inc()
-		return nil, err
-	}
+	if viper.GetBool("crdb.enabled") {
+		err := upserter.UpsertMetadata(ctx, db, logger, lookupResp.ID, lookupResp.IPAddresses, newInstanceMetadata)
+		if err != nil {
+			middleware.MetricMetadataStoreErrors.Inc()
+			return nil, err
+		}
 
-	middleware.MetricMetadataInsertsCount.Inc()
+		middleware.MetricMetadataInsertsCount.Inc()
+	} else {
+		logger.Sugar().Infof("storeMetadata: DB is disabled, skipping upsert for instance %s", lookupResp.ID)
+	}
 
 	return newInstanceMetadata, nil
 }
@@ -132,13 +137,19 @@ func storeUserdata(ctx context.Context, db *sqlx.DB, logger *zap.Logger, lookupR
 		Userdata: null.NewBytes(lookupResp.Userdata, true),
 	}
 
-	err := upserter.UpsertUserdata(ctx, db, logger, lookupResp.ID, lookupResp.IPAddresses, newInstanceUserdata)
-	if err != nil {
-		middleware.MetricUserdataStoreErrors.Inc()
-		return nil, err
+	if viper.GetBool("crdb.enabled") {
+		err := upserter.UpsertUserdata(ctx, db, logger, lookupResp.ID, lookupResp.IPAddresses, newInstanceUserdata)
+		if err != nil {
+			middleware.MetricUserdataStoreErrors.Inc()
+			return nil, err
+		}
+
+		middleware.MetricUserdataInsertsCount.Inc()
+	} else {
+		logger.Sugar().Infof("storeUserdata: DB is disabled, skipping upsert for instance %s", lookupResp.ID)
 	}
 
-	middleware.MetricUserdataInsertsCount.Inc()
+	logger.Sugar().Infof("storeUserdata: returning newInstanceUserdata %s for instance %s", newInstanceUserdata.Userdata, lookupResp.ID)
 
 	return newInstanceUserdata, nil
 }

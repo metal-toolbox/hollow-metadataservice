@@ -101,6 +101,14 @@ func (r *Router) instanceMetadataGetInternal(c *gin.Context) {
 		return
 	}
 
+	// If the database is disabled, we always want to return a 404
+	if !viper.GetBool("crdb.enabled") {
+		r.Logger.Sugar().Infof("instanceMetadataGetInternal: DB is disabled, returning a 404 for instance %s", instanceID)
+		c.Status(http.StatusNotFound)
+
+		return
+	}
+
 	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
@@ -217,6 +225,14 @@ func (r *Router) instanceMetadataExistsInternal(c *gin.Context) {
 		return
 	}
 
+	// If the database is disabled, we always want to return a 404
+	if !viper.GetBool("crdb.enabled") {
+		r.Logger.Sugar().Infof("instanceMetadataExistsInternal: DB is disabled, returning a 404 for instance %s", instanceID)
+		c.Status(http.StatusNotFound)
+
+		return
+	}
+
 	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
@@ -270,6 +286,14 @@ func (r *Router) instanceUserdataGetInternal(c *gin.Context) {
 		return
 	}
 
+	// If the database is disabled, we always want to return a 404
+	if !viper.GetBool("crdb.enabled") {
+		r.Logger.Sugar().Infof("instanceUserdataGetInternal: DB is disabled, returning a 404 for instance %s", instanceID)
+		c.Status(http.StatusNotFound)
+
+		return
+	}
+
 	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
 
 	if err != nil {
@@ -293,6 +317,14 @@ func (r *Router) instanceUserdataExistsInternal(c *gin.Context) {
 
 	if err != nil {
 		invalidUUIDResponse(c, err)
+		return
+	}
+
+	// If the database is disabled, we always want to return a 404
+	if !viper.GetBool("crdb.enabled") {
+		r.Logger.Sugar().Infof("instanceUserdataExistsInternal: DB is disabled, returning a 404 for instance %s", instanceID)
+		c.Status(http.StatusNotFound)
+
 		return
 	}
 
@@ -350,9 +382,13 @@ func (r *Router) instanceMetadataSet(c *gin.Context) {
 		Metadata: types.JSON(params.Metadata),
 	}
 
-	err := upserter.UpsertMetadata(c, r.DB, r.Logger, params.ID, params.getIPAddresses(), newInstanceMetadata)
-	if err != nil {
-		dbErrorResponse(r.Logger, c, err)
+	if viper.GetBool("crdb.enabled") {
+		err := upserter.UpsertMetadata(c, r.DB, r.Logger, params.ID, params.getIPAddresses(), newInstanceMetadata)
+		if err != nil {
+			dbErrorResponse(r.Logger, c, err)
+		}
+	} else {
+		r.Logger.Sugar().Infof("instanceMetadataSet: DB is disabled, not performing metadata upsert for instance %s", params.ID)
 	}
 
 	c.Status(http.StatusOK)
@@ -377,9 +413,13 @@ func (r *Router) instanceUserdataSet(c *gin.Context) {
 		Userdata: null.NewBytes(params.Userdata, true),
 	}
 
-	err := upserter.UpsertUserdata(c, r.DB, r.Logger, params.ID, params.getIPAddresses(), newInstanceUserdata)
-	if err != nil {
-		dbErrorResponse(r.Logger, c, err)
+	if viper.GetBool("crdb.enabled") {
+		err := upserter.UpsertUserdata(c, r.DB, r.Logger, params.ID, params.getIPAddresses(), newInstanceUserdata)
+		if err != nil {
+			dbErrorResponse(r.Logger, c, err)
+		}
+	} else {
+		r.Logger.Sugar().Infof("instanceUserdataSet: DB is disabled, not performing userdata upsert for instance %s", params.ID)
 	}
 
 	c.Status(http.StatusOK)
@@ -397,14 +437,20 @@ func (r *Router) instanceMetadataDelete(c *gin.Context) {
 		return
 	}
 
-	metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
+	if viper.GetBool("crdb.enabled") {
+		metadata, err := models.FindInstanceMetadatum(c.Request.Context(), r.DB, instanceID)
 
-	if err != nil {
-		dbErrorResponse(r.Logger, c, err)
-		return
+		if err != nil {
+			dbErrorResponse(r.Logger, c, err)
+			return
+		}
+
+		handleDeleteRequest(c, r, instanceID, metadata, nil)
+	} else {
+		// If the database is disabled, there is nothing to delete, so just return a 200 response
+		r.Logger.Sugar().Infof("instanceMetadataDelete: DB is disabled, returning a 200 for instance %s", instanceID)
+		c.Status(http.StatusOK)
 	}
-
-	handleDeleteRequest(c, r, instanceID, metadata, nil)
 }
 
 func (r *Router) instanceUserdataDelete(c *gin.Context) {
@@ -419,14 +465,20 @@ func (r *Router) instanceUserdataDelete(c *gin.Context) {
 		return
 	}
 
-	userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
+	if viper.GetBool("crdb.enabled") {
+		userdata, err := models.FindInstanceUserdatum(c.Request.Context(), r.DB, instanceID)
 
-	if err != nil {
-		dbErrorResponse(r.Logger, c, err)
-		return
+		if err != nil {
+			dbErrorResponse(r.Logger, c, err)
+			return
+		}
+
+		handleDeleteRequest(c, r, instanceID, nil, userdata)
+	} else {
+		// If the database is disabled, there is nothing to delete, so just return a 200 response
+		r.Logger.Sugar().Infof("instanceUserdataDelete: DB is disabled, returning a 200 for instance %s", instanceID)
+		c.Status(http.StatusOK)
 	}
-
-	handleDeleteRequest(c, r, instanceID, nil, userdata)
 }
 
 func handleDeleteRequest(c *gin.Context, r *Router, instanceID string, metadata *models.InstanceMetadatum, userdata *models.InstanceUserdatum) {

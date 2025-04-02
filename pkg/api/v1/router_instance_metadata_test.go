@@ -22,6 +22,8 @@ import (
 )
 
 func TestGetMetadataByIP(t *testing.T) {
+	viper.SetDefault("crdb.enabled", true)
+
 	router := *testHTTPServer(t)
 
 	type testCase struct {
@@ -118,6 +120,8 @@ func TestGetMetadataByIP(t *testing.T) {
 }
 
 func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
+	viper.SetDefault("crdb.enabled", true)
+
 	apiURLTmpl, err := template.New("apiURL").Parse("https://metadata-service")
 	if err != nil {
 		t.Error(err)
@@ -188,6 +192,8 @@ func TestGetMetadataByIPWithTemplateFields(t *testing.T) {
 }
 
 func TestGetMetadataByIPWithErrorTemplate(t *testing.T) {
+	viper.SetDefault("crdb.enabled", true)
+
 	// Test that if an error occurs attempting to produce output for a template
 	// field, we just return the original metadata.
 	missingFieldTmpl, err := template.New("missingField").Option("missingkey=error").Parse("oh look it's {{.missingField}}")
@@ -314,6 +320,7 @@ func TestSetMetadataIPAddressConflict(t *testing.T) {
 	router := *testHTTPServer(t)
 	testDB := dbtools.TestDB()
 
+	viper.SetDefault("crdb.enabled", true)
 	viper.SetDefault("crdb.max_retries", 5)
 	viper.SetDefault("crdb.retry_interval", 1*time.Second)
 	viper.SetDefault("crdb.tx_timeout", 15*time.Second)
@@ -425,6 +432,7 @@ func TestSetMetadataCreateMetadata(t *testing.T) {
 	router := *testHTTPServer(t)
 	testDB := dbtools.TestDB()
 
+	viper.SetDefault("crdb.enabled", true)
 	viper.SetDefault("crdb.max_retries", 5)
 	viper.SetDefault("crdb.retry_interval", 1*time.Second)
 	viper.SetDefault("crdb.tx_timeout", 15*time.Second)

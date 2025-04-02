@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
+	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 	"go.uber.org/zap"
 
@@ -65,11 +66,13 @@ func IdentifyInstanceByIP(logger *zap.Logger, db *sqlx.DB) gin.HandlerFunc {
 
 		c.Set(ContextKeyRequestorIP, address)
 
-		instanceIPAddress, err = models.InstanceIPAddresses(qm.Where("address >>= ?::inet", address)).One(c, db)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			logger.Error("error looking up instance address", zap.Error(err))
+		if viper.GetBool("crdb.enabled") {
+			instanceIPAddress, err = models.InstanceIPAddresses(qm.Where("address >>= ?::inet", address)).One(c, db)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				logger.Error("error looking up instance address", zap.Error(err))
 
-			c.AbortWithStatus(http.StatusInternalServerError)
+				c.AbortWithStatus(http.StatusInternalServerError)
+			}
 		}
 
 		if instanceIPAddress != nil {
