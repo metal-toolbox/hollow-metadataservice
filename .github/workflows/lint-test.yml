@@ -31,7 +31,7 @@ jobs:
         run: make test-database
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v1.60.3
           args: --timeout=5m
