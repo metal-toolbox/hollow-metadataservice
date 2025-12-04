@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.23.6
 
 require (
-	github.com/cockroachdb/cockroach-go/v2 v2.4.0
+	github.com/cockroachdb/cockroach-go/v2 v2.4.3
 	github.com/coreos/go-oidc/v3 v3.14.1
 	github.com/friendsofgo/errors v0.9.2
 	github.com/gin-contrib/cors v1.7.5
